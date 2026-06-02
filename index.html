@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
-    <title>PRO ROTA - Rastreamento de Ônibus</title>
+    <title>PRO ROTA - Motorista</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -13,259 +13,100 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
         }
 
         body {
             font-family: 'Inter', sans-serif;
             background: #0a0e27;
             color: #e0e0e0;
+            overflow-x: hidden;
         }
 
-        /* ==================== TELA DE SELEÇÃO ==================== */
-        .selection-container {
+        /* Container Principal */
+        .container {
             min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             background: linear-gradient(135deg, #0a1e3c 0%, #0d2b4e 100%);
-            padding: 20px;
         }
 
-        .selection-box {
-            background: #1a1f3e;
-            border-radius: 32px;
-            padding: 40px;
-            width: 100%;
-            max-width: 500px;
+        /* Header */
+        .header {
+            background: rgba(10, 30, 60, 0.95);
+            padding: 20px;
             text-align: center;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            position: relative;
         }
 
         .logo {
-            font-size: 42px;
+            font-size: 28px;
             font-weight: 800;
             background: linear-gradient(135deg, #0d6efd, #198754);
             -webkit-background-clip: text;
             background-clip: text;
             color: transparent;
-            margin-bottom: 10px;
         }
 
-        .subtitle {
-            color: #6c757d;
-            margin-bottom: 40px;
-        }
-
-        .selection-buttons {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        .selection-btn {
-            padding: 20px;
-            border: none;
-            border-radius: 20px;
-            font-size: 18px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 15px;
-        }
-
-        .btn-passageiro {
-            background: linear-gradient(135deg, #198754, #157347);
-            color: white;
-        }
-
-        .btn-motorista {
-            background: linear-gradient(135deg, #0d6efd, #0b5ed7);
-            color: white;
-        }
-
-        .selection-btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-        }
-
-        /* ==================== TELA DO PASSAGEIRO (estilo 99) ==================== */
-        .passageiro-container {
-            min-height: 100vh;
-            background: #0a0e27;
-        }
-
-        .passageiro-header {
-            background: linear-gradient(135deg, #0a1e3c, #0d2b4e);
-            padding: 20px;
-            text-align: center;
-            position: relative;
-        }
-
-        .btn-voltar {
+        .btn-sair {
             position: absolute;
-            left: 15px;
+            right: 15px;
             top: 50%;
             transform: translateY(-50%);
-            background: rgba(255,255,255,0.1);
+            background: #dc3545;
             border: none;
-            border-radius: 30px;
+            border-radius: 8px;
             padding: 8px 16px;
             color: white;
             cursor: pointer;
-        }
-
-        .busca-container {
-            padding: 20px;
-            background: #1a1f3e;
-            margin: -20px 15px 0 15px;
-            border-radius: 20px;
-            position: relative;
-            z-index: 10;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
-        }
-
-        .busca-box {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            background: #2a2f4e;
-            border-radius: 50px;
-            padding: 5px 5px 5px 20px;
-        }
-
-        .busca-box input {
-            flex: 1;
-            background: transparent;
-            border: none;
-            padding: 15px 0;
-            color: white;
-            font-size: 16px;
-            outline: none;
-        }
-
-        .busca-box button {
-            background: #0d6efd;
-            border: none;
-            border-radius: 50px;
-            padding: 12px 25px;
-            color: white;
             font-weight: 600;
-            cursor: pointer;
         }
 
-        .onibus-list {
-            padding: 15px;
-            max-height: 300px;
-            overflow-y: auto;
+        /* Cards Dashboard */
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            padding: 20px;
         }
 
-        .onibus-card {
+        .card {
             background: #1a1f3e;
             border-radius: 16px;
-            padding: 15px;
+            padding: 20px;
+            text-align: center;
+            transition: transform 0.3s;
+        }
+
+        .card-icon {
+            font-size: 32px;
+            color: #0d6efd;
             margin-bottom: 10px;
-            cursor: pointer;
-            transition: all 0.3s;
-            border: 2px solid transparent;
         }
 
-        .onibus-card:hover {
-            border-color: #0d6efd;
-            transform: translateX(5px);
+        .card-value {
+            font-size: 28px;
+            font-weight: 800;
+            margin: 10px 0;
         }
 
-        .onibus-card.selecionado {
-            border-color: #198754;
-            background: #1a2d1a;
+        .card-label {
+            color: #6c757d;
+            font-size: 13px;
         }
 
         /* Mapa */
         .mapa-container {
-            height: 350px;
-            margin: 15px;
+            margin: 0 20px 20px 20px;
+            height: 450px;
             border-radius: 20px;
             overflow: hidden;
             position: relative;
+            background: #1a1f3e;
         }
 
-        #mapaPassageiro {
+        #mapaMotorista {
             height: 100%;
             width: 100%;
-        }
-
-        /* Painel de Informações estilo 99 */
-        .info-painel {
-            background: #1a1f3e;
-            margin: 15px;
-            border-radius: 24px;
-            padding: 20px;
-            box-shadow: 0 -5px 20px rgba(0,0,0,0.3);
-        }
-
-        .info-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            padding-bottom: 15px;
-            border-bottom: 1px solid #2a2f4e;
-        }
-
-        .onibus-numero {
-            font-size: 24px;
-            font-weight: 800;
-        }
-
-        .status-badge {
-            background: #198754;
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-        }
-
-        .info-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-
-        .info-item {
-            text-align: center;
-            padding: 12px;
-            background: #2a2f4e;
-            border-radius: 16px;
-        }
-
-        .info-label {
-            font-size: 12px;
-            color: #aaa;
-            margin-bottom: 5px;
-        }
-
-        .info-value {
-            font-size: 20px;
-            font-weight: 700;
-        }
-
-        .previsao {
-            text-align: center;
-            background: linear-gradient(135deg, #0d6efd, #198754);
-            border-radius: 16px;
-            padding: 15px;
-            margin-top: 10px;
-        }
-
-        .previsao-label {
-            font-size: 12px;
-            opacity: 0.8;
-        }
-
-        .previsao-tempo {
-            font-size: 36px;
-            font-weight: 800;
         }
 
         /* Controles do Mapa */
@@ -289,30 +130,86 @@
             box-shadow: 0 2px 10px rgba(0,0,0,0.3);
         }
 
-        /* ==================== TELA DO MOTORISTA ==================== */
-        .motorista-container {
-            min-height: 100vh;
-            background: #0a0e27;
+        .zoom-btn {
+            background: #1a1f3e;
+            color: white;
+            border: none;
+            border-radius: 40px;
+            padding: 10px 14px;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: bold;
         }
 
-        .motorista-header {
-            background: linear-gradient(135deg, #0a1e3c, #0d2b4e);
-            padding: 20px;
-            text-align: center;
-            position: relative;
+        .gps-status {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.8);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            z-index: 1000;
         }
 
-        .form-container {
-            padding: 20px;
-            max-width: 500px;
+        /* Checklist */
+        .checklist-container {
+            max-width: 600px;
             margin: 0 auto;
+            padding: 20px;
         }
 
-        .form-card {
+        .checklist-card {
             background: #1a1f3e;
             border-radius: 24px;
             padding: 25px;
+        }
+
+        .checklist-title {
+            font-size: 24px;
             margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .checklist-item {
+            background: #2a2f4e;
+            border-radius: 16px;
+            padding: 18px;
+            margin-bottom: 15px;
+        }
+
+        .checklist-item label {
+            font-weight: 600;
+            display: block;
+            margin-bottom: 12px;
+        }
+
+        .radio-group {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .radio-group label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: normal;
+            cursor: pointer;
+        }
+
+        .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .checkbox-group label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: normal;
+            cursor: pointer;
         }
 
         .form-group {
@@ -325,34 +222,14 @@
             font-weight: 500;
         }
 
-        .form-group input, .form-group select {
+        .form-group select, .form-group textarea {
             width: 100%;
-            padding: 14px;
+            padding: 12px;
             background: #2a2f4e;
             border: 1px solid #3a3f5e;
             border-radius: 12px;
             color: white;
-            font-size: 16px;
-        }
-
-        .checklist-item {
-            background: #2a2f4e;
-            border-radius: 16px;
-            padding: 15px;
-            margin-bottom: 15px;
-        }
-
-        .radio-group {
-            display: flex;
-            gap: 15px;
-            margin-top: 10px;
-            flex-wrap: wrap;
-        }
-
-        .radio-group label {
-            display: flex;
-            align-items: center;
-            gap: 5px;
+            font-size: 14px;
         }
 
         .btn {
@@ -371,20 +248,20 @@
             color: white;
         }
 
-        .btn-danger {
-            background: #dc3545;
-            color: white;
+        .btn-primary:hover {
+            background: #0b5ed7;
+            transform: translateY(-2px);
         }
 
-        .btn-success {
-            background: #198754;
+        .btn-danger {
+            background: #dc3545;
             color: white;
         }
 
         .alert {
             padding: 15px;
             border-radius: 12px;
-            margin: 15px 0;
+            margin-top: 15px;
         }
 
         .alert-danger {
@@ -399,16 +276,82 @@
             color: #6bff6b;
         }
 
-        .gps-status {
-            background: #1a1f3e;
-            padding: 12px;
-            border-radius: 12px;
-            text-align: center;
-            margin-bottom: 15px;
+        .alert-info {
+            background: rgba(13,110,253,0.2);
+            border: 1px solid #0d6efd;
+            color: #6bb5ff;
         }
 
-        .gps-active {
-            color: #198754;
+        /* Tabelas */
+        .table-container {
+            background: #1a1f3e;
+            border-radius: 20px;
+            padding: 20px;
+            margin: 20px;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #2a2f4e;
+        }
+
+        th {
+            color: #0d6efd;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .badge-success {
+            background: #198754;
+            color: white;
+        }
+
+        .badge-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        /* Loading */
+        .loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #2a2f4e;
+            border-top: 4px solid #0d6efd;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
 
         @keyframes pulse {
@@ -420,10 +363,69 @@
             animation: pulse 1.5s infinite;
         }
 
+        /* Tela de Login */
+        .login-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #0a1e3c 0%, #0d2b4e 100%);
+            padding: 20px;
+        }
+
+        .login-box {
+            background: #1a1f3e;
+            border-radius: 32px;
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .login-box input {
+            width: 100%;
+            padding: 14px;
+            margin: 10px 0;
+            background: #2a2f4e;
+            border: 1px solid #3a3f5e;
+            border-radius: 12px;
+            color: white;
+            font-size: 16px;
+        }
+
+        /* Menu Navegação */
+        .nav-menu {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            padding: 15px 20px;
+            background: #1a1f3e;
+            margin: 0 20px 20px 20px;
+            border-radius: 60px;
+            flex-wrap: wrap;
+        }
+
+        .nav-btn {
+            background: transparent;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 40px;
+            color: #aaa;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .nav-btn.active {
+            background: #0d6efd;
+            color: white;
+        }
+
         @media (max-width: 768px) {
-            .info-value { font-size: 16px; }
-            .previsao-tempo { font-size: 28px; }
-            .onibus-numero { font-size: 20px; }
+            .cards-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 15px; }
+            .card-value { font-size: 22px; }
+            .mapa-container { height: 350px; margin: 15px; }
+            .nav-btn { padding: 8px 16px; font-size: 14px; }
         }
     </style>
 </head>
@@ -434,22 +436,25 @@
         // ==================== BANCO DE DADOS ====================
         let db = {
             onibus: [
-                { id: 1, numero: "3200", placa: "ABC-1234", modelo: "Mercedes O500", status: "em_rota", motorista: "João Medeiros", velocidade: 42, lat: -23.5505, lng: -46.6333, ultima_atualizacao: new Date().toISOString() },
-                { id: 2, numero: "3201", placa: "DEF-5678", modelo: "Volvo B340", status: "em_rota", motorista: "Maria Santos", velocidade: 38, lat: -23.5450, lng: -46.6400, ultima_atualizacao: new Date().toISOString() },
-                { id: 3, numero: "3202", placa: "GHI-9012", modelo: "Scania K360", status: "em_rota", motorista: "Pedro Oliveira", velocidade: 55, lat: -23.5600, lng: -46.6200, ultima_atualizacao: new Date().toISOString() },
-                { id: 4, numero: "3203", placa: "JKL-3456", modelo: "Marcopolo", status: "parado", motorista: null, velocidade: 0, lat: -23.5550, lng: -46.6450, ultima_atualizacao: new Date().toISOString() }
+                { id: 1, numero: "3200", placa: "ABC-1234", modelo: "Mercedes O500", status: "parado", motorista_id: null, velocidade: 0, lat: -23.5505, lng: -46.6333 },
+                { id: 2, numero: "3201", placa: "DEF-5678", modelo: "Volvo B340", status: "parado", motorista_id: null, velocidade: 0, lat: -23.5450, lng: -46.6400 }
+            ],
+            motoristas: [
+                { id: 1, matricula: "MEDE", senha: "123456", nome: "João Medeiros", onibus_id: 1, status: "ativo" }
             ],
             rotas_ativas: [],
-            gps_logs: []
+            rotas_finalizadas: [],
+            gps_logs: [],
+            checklists: []
         };
 
-        let currentScreen = 'selection';
+        // Variáveis globais
         let currentUser = null;
-        let watchId = null;
+        let currentPage = 'dashboard';
         let map = null;
-        let markers = {};
-        let onibusSelecionado = null;
-        let atualizacaoInterval = null;
+        let markerOnibus = null;
+        let watchId = null;
+        let onibusAtual = null;
 
         // ==================== FUNÇÕES DE UTILITÁRIO ====================
         function showNotification(message, type) {
@@ -465,27 +470,8 @@
             setTimeout(() => notification.remove(), 3000);
         }
 
-        function calcularDistancia(lat1, lon1, lat2, lon2) {
-            const R = 6371;
-            const dLat = (lat2 - lat1) * Math.PI / 180;
-            const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                      Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) *
-                      Math.sin(dLon/2) * Math.sin(dLon/2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            return R * c;
-        }
-
-        function calcularTempo(distanciaKm, velocidadeKmh) {
-            if (velocidadeKmh <= 0) return "Calculando...";
-            const minutos = Math.round((distanciaKm / velocidadeKmh) * 60);
-            if (minutos < 1) return "Chegando";
-            if (minutos < 60) return `${minutos} min`;
-            return `${Math.floor(minutos/60)}h ${minutos%60}min`;
-        }
-
-        // ==================== GEOLOCALIZAÇÃO DO MOTORISTA ====================
-        function iniciarGPSMotorista(onibusId) {
+        // ==================== GEOLOCALIZAÇÃO ====================
+        function iniciarGPS() {
             if (!navigator.geolocation) {
                 showNotification("Seu navegador não suporta GPS", "error");
                 return false;
@@ -495,31 +481,41 @@
 
             function success(position) {
                 const { latitude, longitude, speed } = position.coords;
-                const onibus = db.onibus.find(b => b.id === onibusId);
-                if (onibus) {
-                    onibus.lat = latitude;
-                    onibus.lng = longitude;
-                    onibus.velocidade = speed ? Math.round(speed * 3.6) : onibus.velocidade;
-                    onibus.ultima_atualizacao = new Date().toISOString();
+                
+                if (onibusAtual) {
+                    onibusAtual.lat = latitude;
+                    onibusAtual.lng = longitude;
+                    onibusAtual.velocidade = speed ? Math.round(speed * 3.6) : onibusAtual.velocidade;
                     
+                    // Salvar log
                     db.gps_logs.push({
-                        id: Date.now(), onibus_id: onibusId,
-                        lat: latitude, lng: longitude,
-                        velocidade: onibus.velocidade,
+                        id: Date.now(),
+                        onibus_id: onibusAtual.id,
+                        lat: latitude,
+                        lng: longitude,
+                        velocidade: onibusAtual.velocidade,
                         timestamp: new Date().toISOString()
                     });
+                    
+                    // Atualizar marcador no mapa
+                    if (map) {
+                        atualizarMarcador();
+                        map.setView([latitude, longitude], 15);
+                    }
+                    
+                    // Atualizar card de velocidade
+                    const velElement = document.getElementById('velocidadeValue');
+                    if (velElement) velElement.textContent = `${onibusAtual.velocidade} km/h`;
                 }
                 
-                const statusDiv = document.getElementById('gpsStatusText');
-                if (statusDiv) {
-                    statusDiv.innerHTML = `<i class="fas fa-satellite-dish"></i> GPS Ativo - ${onibus?.velocidade || 0} km/h`;
-                }
+                const gpsStatus = document.getElementById('gpsStatusText');
+                if (gpsStatus) gpsStatus.innerHTML = `<i class="fas fa-satellite-dish"></i> GPS Ativo ${onibusAtual?.velocidade || 0} km/h`;
             }
 
             function error(err) {
                 console.error("Erro GPS:", err);
-                const statusDiv = document.getElementById('gpsStatusText');
-                if (statusDiv) statusDiv.innerHTML = `<i class="fas fa-exclamation-triangle"></i> GPS Indisponível`;
+                const gpsStatus = document.getElementById('gpsStatusText');
+                if (gpsStatus) gpsStatus.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Aguardando sinal GPS...`;
             }
 
             if (watchId) navigator.geolocation.clearWatch(watchId);
@@ -534,398 +530,437 @@
             }
         }
 
-        // ==================== TELA DE SELEÇÃO ====================
-        function renderSelecao() {
-            currentScreen = 'selection';
-            const app = document.getElementById('app');
-            app.innerHTML = `
-                <div class="selection-container">
-                    <div class="selection-box">
-                        <div class="logo"><i class="fas fa-bus"></i> PRO ROTA</div>
-                        <div class="subtitle">Sistema de Rastreamento de Ônibus</div>
-                        <div class="selection-buttons">
-                            <button class="selection-btn btn-passageiro" onclick="abrirPassageiro()">
-                                <i class="fas fa-eye"></i> Acompanhar Ônibus
-                            </button>
-                            <button class="selection-btn btn-motorista" onclick="abrirMotorista()">
-                                <i class="fas fa-id-card"></i> Sou Motorista
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        // ==================== TELA DO PASSAGEIRO (ESTILO 99) ====================
-        function abrirPassageiro() {
-            currentScreen = 'passageiro';
-            const app = document.getElementById('app');
-            app.innerHTML = `
-                <div class="passageiro-container">
-                    <div class="passageiro-header">
-                        <button class="btn-voltar" onclick="renderSelecao()"><i class="fas fa-arrow-left"></i> Voltar</button>
-                        <div class="logo" style="font-size: 24px;">PRO ROTA</div>
-                        <p style="font-size: 12px; opacity: 0.8;">Rastreamento em Tempo Real</p>
-                    </div>
-                    
-                    <div class="busca-container">
-                        <div class="busca-box">
-                            <i class="fas fa-search"></i>
-                            <input type="text" id="buscaOnibus" placeholder="Número do ônibus (ex: 3200)" autocomplete="off">
-                            <button onclick="buscarOnibus()">Buscar</button>
-                        </div>
-                    </div>
-                    
-                    <div id="listaOnibus" class="onibus-list"></div>
-                    
-                    <div id="mapaSection" style="display: none;">
-                        <div class="mapa-container">
-                            <div class="map-controls">
-                                <button class="map-btn" onclick="centralizarOnibus()"><i class="fas fa-location-dot"></i></button>
-                            </div>
-                            <div id="mapaPassageiro"></div>
-                        </div>
-                        
-                        <div class="info-painel" id="infoPainel">
-                            <div class="info-header">
-                                <span class="onibus-numero" id="onibusNumero">-</span>
-                                <span class="status-badge" id="statusBadge">EM ROTA</span>
-                            </div>
-                            <div class="info-grid">
-                                <div class="info-item">
-                                    <div class="info-label"><i class="fas fa-tachometer-alt"></i> Velocidade</div>
-                                    <div class="info-value" id="velocidadeValue">-- km/h</div>
-                                </div>
-                                <div class="info-item">
-                                    <div class="info-label"><i class="fas fa-road"></i> Distância</div>
-                                    <div class="info-value" id="distanciaValue">-- km</div>
-                                </div>
-                                <div class="info-item">
-                                    <div class="info-label"><i class="fas fa-user"></i> Motorista</div>
-                                    <div class="info-value" id="motoristaValue">--</div>
-                                </div>
-                                <div class="info-item">
-                                    <div class="info-label"><i class="fas fa-clock"></i> Atualização</div>
-                                    <div class="info-value" id="atualizacaoValue">--</div>
-                                </div>
-                            </div>
-                            <div class="previsao">
-                                <div class="previsao-label">⏱️ PREVISÃO DE CHEGADA</div>
-                                <div class="previsao-tempo" id="previsaoTempo">--</div>
-                                <div style="font-size: 12px;">Baseado na velocidade atual</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
+        function atualizarMarcador() {
+            if (!map || !onibusAtual) return;
             
-            document.getElementById('buscaOnibus').addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') buscarOnibus();
-            });
+            if (markerOnibus) map.removeLayer(markerOnibus);
             
-            mostrarListaOnibus();
-        }
-
-        function mostrarListaOnibus() {
-            const container = document.getElementById('listaOnibus');
-            const onibusEmRota = db.onibus.filter(b => b.status === 'em_rota');
-            
-            if (onibusEmRota.length === 0) {
-                container.innerHTML = '<div style="text-align:center; padding: 20px; color: #6c757d;">⚠️ Nenhum ônibus em rota no momento</div>';
-                return;
-            }
-            
-            container.innerHTML = onibusEmRota.map(bus => `
-                <div class="onibus-card" onclick="selecionarOnibus(${bus.id})">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <strong style="font-size: 18px;">🚌 Ônibus ${bus.numero}</strong><br>
-                            <small style="color: #aaa;">${bus.placa} • ${bus.modelo}</small>
-                        </div>
-                        <div class="status-badge" style="background: #198754;">● EM ROTA</div>
-                    </div>
-                    <div style="margin-top: 8px; display: flex; gap: 15px; font-size: 13px; color: #aaa;">
-                        <span><i class="fas fa-tachometer-alt"></i> ${bus.velocidade} km/h</span>
-                        <span><i class="fas fa-user"></i> ${bus.motorista || 'Motorista'}</span>
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        function buscarOnibus() {
-            const busca = document.getElementById('buscaOnibus').value.trim();
-            if (!busca) {
-                showNotification("Digite o número do ônibus!", "error");
-                return;
-            }
-            
-            const onibus = db.onibus.find(b => b.numero === busca);
-            if (!onibus) {
-                showNotification(`Ônibus ${busca} não encontrado!`, "error");
-                return;
-            }
-            
-            if (onibus.status !== 'em_rota') {
-                showNotification(`Ônibus ${busca} não está em rota no momento!`, "warning");
-                return;
-            }
-            
-            selecionarOnibus(onibus.id);
-        }
-
-        function selecionarOnibus(onibusId) {
-            onibusSelecionado = db.onibus.find(b => b.id === onibusId);
-            if (!onibusSelecionado) return;
-            
-            // Destacar card
-            document.querySelectorAll('.onibus-card').forEach(card => card.classList.remove('selecionado'));
-            const cards = document.querySelectorAll('.onibus-card');
-            for (let card of cards) {
-                if (card.innerText.includes(onibusSelecionado.numero)) {
-                    card.classList.add('selecionado');
-                }
-            }
-            
-            // Mostrar mapa e informações
-            document.getElementById('mapaSection').style.display = 'block';
-            document.getElementById('listaOnibus').style.display = 'none';
-            
-            // Inicializar mapa
-            if (map) map.remove();
-            map = L.map('mapaPassageiro').setView([onibusSelecionado.lat, onibusSelecionado.lng], 14);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap'
-            }).addTo(map);
-            
-            // Adicionar marcador do ônibus
-            atualizarMarcadorPassageiro();
-            
-            // Atualizar informações
-            atualizarInfoPassageiro();
-            
-            // Iniciar atualização em tempo real
-            if (atualizacaoInterval) clearInterval(atualizacaoInterval);
-            atualizacaoInterval = setInterval(() => {
-                const onibusAtualizado = db.onibus.find(b => b.id === onibusSelecionado.id);
-                if (onibusAtualizado) {
-                    onibusSelecionado = onibusAtualizado;
-                    atualizarMarcadorPassageiro();
-                    atualizarInfoPassageiro();
-                }
-            }, 3000);
-        }
-
-        function atualizarMarcadorPassageiro() {
-            if (!map || !onibusSelecionado) return;
-            
-            const key = `bus_${onibusSelecionado.id}`;
             const icon = L.divIcon({
-                html: `<div style="background: #198754; width: 18px; height: 18px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 15px #198754;"></div><div style="position: absolute; top: -25px; left: -25px; width: 68px; height: 68px; background: rgba(25,135,84,0.3); border-radius: 50%; animation: pulse 1.5s infinite;"></div>`,
-                iconSize: [18, 18],
+                html: `<div style="background: #0d6efd; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 15px #0d6efd;"></div>
+                       <div style="position: absolute; top: -25px; left: -25px; width: 70px; height: 70px; background: rgba(13,110,253,0.3); border-radius: 50%; animation: pulse 1.5s infinite;"></div>`,
+                iconSize: [20, 20],
                 className: 'live-marker'
             });
             
-            if (markers[key]) {
-                markers[key].setLatLng([onibusSelecionado.lat, onibusSelecionado.lng]);
-            } else {
-                markers[key] = L.marker([onibusSelecionado.lat, onibusSelecionado.lng], { icon: icon }).addTo(map);
-            }
-            
-            map.setView([onibusSelecionado.lat, onibusSelecionado.lng], 14);
+            markerOnibus = L.marker([onibusAtual.lat, onibusAtual.lng], { icon: icon }).addTo(map);
+            markerOnibus.bindPopup(`
+                <strong>🚌 Ônibus ${onibusAtual.numero}</strong><br>
+                <i class="fas fa-tachometer-alt"></i> ${onibusAtual.velocidade} km/h<br>
+                <i class="fas fa-clock"></i> ${new Date().toLocaleTimeString()}
+            `);
         }
 
-        function atualizarInfoPassageiro() {
-            if (!onibusSelecionado) return;
-            
-            // Ponto de referência (parada fixa)
-            const pontoRef = { lat: -23.5505, lng: -46.6333 };
-            const distancia = calcularDistancia(onibusSelecionado.lat, onibusSelecionado.lng, pontoRef.lat, pontoRef.lng);
-            const tempo = calcularTempo(distancia, onibusSelecionado.velocidade);
-            
-            document.getElementById('onibusNumero').innerHTML = `🚌 ${onibusSelecionado.numero}`;
-            document.getElementById('velocidadeValue').innerHTML = `${onibusSelecionado.velocidade} km/h`;
-            document.getElementById('distanciaValue').innerHTML = `${distancia.toFixed(1)} km`;
-            document.getElementById('motoristaValue').innerHTML = onibusSelecionado.motorista || 'Motorista';
-            document.getElementById('atualizacaoValue').innerHTML = new Date(onibusSelecionado.ultima_atualizacao).toLocaleTimeString();
-            document.getElementById('previsaoTempo').innerHTML = tempo;
+        // ==================== FUNÇÕES DO MOTORISTA ====================
+        function validarLogin(matricula, senha) {
+            return db.motoristas.find(m => m.matricula === matricula && m.senha === senha);
         }
 
-        function centralizarOnibus() {
-            if (map && onibusSelecionado) {
-                map.setView([onibusSelecionado.lat, onibusSelecionado.lng], 15);
-            }
-        }
-
-        // ==================== TELA DO MOTORISTA ====================
-        function abrirMotorista() {
-            currentScreen = 'motorista';
-            const app = document.getElementById('app');
-            app.innerHTML = `
-                <div class="motorista-container">
-                    <div class="motorista-header">
-                        <button class="btn-voltar" onclick="renderSelecao()"><i class="fas fa-arrow-left"></i> Voltar</button>
-                        <div class="logo" style="font-size: 24px;">Área do Motorista</div>
-                    </div>
-                    
-                    <div class="form-container">
-                        <div class="form-card">
-                            <h3 style="margin-bottom: 20px;"><i class="fas fa-clipboard-list"></i> Checklist de Segurança</h3>
-                            
-                            <div class="checklist-item">
-                                <label><strong>😴 Nível de Sonolência:</strong></label>
-                                <div class="radio-group">
-                                    <label><input type="radio" name="sonolencia" value="nao"> Não</label>
-                                    <label><input type="radio" name="sonolencia" value="leve"> Leve</label>
-                                    <label><input type="radio" name="sonolencia" value="moderada"> Moderada</label>
-                                    <label><input type="radio" name="sonolencia" value="intensa"> Intensa</label>
-                                </div>
-                            </div>
-                            
-                            <div class="checklist-item">
-                                <label><strong>✅ Apto para dirigir:</strong></label>
-                                <div class="radio-group">
-                                    <label><input type="radio" name="apto" value="sim"> Sim</label>
-                                    <label><input type="radio" name="apto" value="nao"> Não</label>
-                                </div>
-                            </div>
-                            
-                            <div class="checklist-item">
-                                <label><strong>⚠️ Condições Adicionais:</strong></label>
-                                <div class="radio-group" style="flex-direction: column;">
-                                    <label><input type="checkbox" id="cansado"> Estou cansado(a)</label>
-                                    <label><input type="checkbox" id="medicamento"> Consumi medicamento</label>
-                                    <label><input type="checkbox" id="dores"> Sinto dores</label>
-                                </div>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label>Selecione seu ônibus:</label>
-                                <select id="selectOnibus">
-                                    <option value="1">3200 - ABC-1234 (Mercedes O500)</option>
-                                    <option value="2">3201 - DEF-5678 (Volvo B340)</option>
-                                </select>
-                            </div>
-                            
-                            <div id="gpsStatusText" class="gps-status">
-                                <i class="fas fa-satellite-dish"></i> GPS Aguardando Início
-                            </div>
-                            
-                            <button class="btn btn-primary" onclick="iniciarRotaMotorista()" id="btnIniciar">
-                                <i class="fas fa-play"></i> Iniciar Rota
-                            </button>
-                            
-                            <div id="resultadoChecklist"></div>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        function iniciarRotaMotorista() {
+        function iniciarRota() {
+            // Verificar checklist
             const sonolencia = document.querySelector('input[name="sonolencia"]:checked')?.value;
             const apto = document.querySelector('input[name="apto"]:checked')?.value;
-            const onibusId = parseInt(document.getElementById('selectOnibus').value);
-            const resultadoDiv = document.getElementById('resultadoChecklist');
             
             if (!sonolencia || !apto) {
-                resultadoDiv.innerHTML = '<div class="alert alert-danger">⚠️ Preencha todas as perguntas obrigatórias!</div>';
-                return;
+                showNotification("Preencha todas as perguntas do checklist!", "error");
+                return false;
             }
             
             if (apto === 'nao' || sonolencia === 'intensa') {
-                resultadoDiv.innerHTML = '<div class="alert alert-danger">⚠️ ROTA NÃO AUTORIZADA! Procure a liderança imediata.</div>';
-                return;
+                showNotification("ROTA NÃO AUTORIZADA! Procure a liderança imediata.", "error");
+                return false;
             }
             
-            const onibus = db.onibus.find(b => b.id === onibusId);
-            if (!onibus) {
-                resultadoDiv.innerHTML = '<div class="alert alert-danger">Ônibus não encontrado!</div>';
-                return;
-            }
+            // Salvar checklist
+            db.checklists.push({
+                id: Date.now(),
+                motorista_id: currentUser.id,
+                sonolencia: sonolencia,
+                apto: apto,
+                cansado: document.getElementById('cansado')?.checked || false,
+                medicamento: document.getElementById('medicamento')?.checked || false,
+                dores: document.getElementById('dores')?.checked || false,
+                observacoes: document.getElementById('observacoes')?.value || '',
+                data: new Date().toISOString()
+            });
             
-            // Encerrar rota anterior se existir
-            const rotaExistente = db.rotas_ativas.find(r => r.onibus_id === onibusId);
+            // Verificar se já tem rota ativa neste ônibus
+            const rotaExistente = db.rotas_ativas.find(r => r.onibus_id === onibusAtual.id);
             if (rotaExistente) {
+                rotaExistente.status = 'finalizada';
+                rotaExistente.fim = new Date().toISOString();
+                db.rotas_finalizadas.push(rotaExistente);
                 db.rotas_ativas = db.rotas_ativas.filter(r => r.id !== rotaExistente.id);
             }
             
             // Iniciar nova rota
-            db.rotas_ativas.push({
+            const novaRota = {
                 id: Date.now(),
-                onibus_id: onibusId,
-                inicio: new Date().toISOString()
-            });
+                onibus_id: onibusAtual.id,
+                motorista_id: currentUser.id,
+                inicio: new Date().toISOString(),
+                status: 'em_rota'
+            };
+            db.rotas_ativas.push(novaRota);
             
-            onibus.status = 'em_rota';
-            onibus.motorista = "João Medeiros";
+            // Atualizar ônibus
+            onibusAtual.status = 'em_rota';
+            onibusAtual.motorista_id = currentUser.id;
             
             // Iniciar GPS
-            iniciarGPSMotorista(onibusId);
+            iniciarGPS();
             
-            resultadoDiv.innerHTML = `
-                <div class="alert alert-success">
-                    ✅ ROTA AUTORIZADA!<br>
-                    🚌 Ônibus ${onibus.numero} em movimento<br>
-                    📡 GPS ativado - Localização sendo enviada
+            showNotification("✅ Rota iniciada com sucesso! GPS ativado.", "success");
+            return true;
+        }
+
+        function encerrarRota() {
+            const rota = db.rotas_ativas.find(r => r.onibus_id === onibusAtual.id);
+            if (rota) {
+                rota.status = 'finalizada';
+                rota.fim = new Date().toISOString();
+                db.rotas_finalizadas.push(rota);
+                db.rotas_ativas = db.rotas_ativas.filter(r => r.id !== rota.id);
+                
+                onibusAtual.status = 'parado';
+                onibusAtual.motorista_id = null;
+                onibusAtual.velocidade = 0;
+                
+                pararGPS();
+                showNotification("Rota encerrada com sucesso!", "success");
+                
+                if (map) {
+                    const icon = L.divIcon({
+                        html: `<div style="background: #ffc107; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white;"></div>`,
+                        iconSize: [16, 16]
+                    });
+                    if (markerOnibus) map.removeLayer(markerOnibus);
+                    markerOnibus = L.marker([onibusAtual.lat, onibusAtual.lng], { icon: icon }).addTo(map);
+                }
+                
+                return true;
+            }
+            return false;
+        }
+
+        // ==================== RENDERIZAÇÃO ====================
+        function render() {
+            if (!currentUser) {
+                renderLogin();
+            } else {
+                onibusAtual = db.onibus.find(b => b.id === currentUser.onibus_id);
+                renderDashboard();
+            }
+        }
+
+        function renderLogin() {
+            const app = document.getElementById('app');
+            app.innerHTML = `
+                <div class="login-container">
+                    <div class="login-box">
+                        <div class="logo" style="font-size: 36px; margin-bottom: 30px;">PRO ROTA</div>
+                        <h3 style="margin-bottom: 20px;">Área do Motorista</h3>
+                        <form id="loginForm">
+                            <input type="text" id="matricula" placeholder="Matrícula" value="MEDE">
+                            <input type="password" id="senha" placeholder="Senha" value="123456">
+                            <button type="submit" class="btn btn-primary" style="margin-top: 10px;">Entrar</button>
+                        </form>
+                        <div style="margin-top: 20px; padding: 12px; background: rgba(255,255,255,0.05); border-radius: 12px;">
+                            <p style="font-size: 12px;">Teste: MEDE / 123456</p>
+                        </div>
+                    </div>
                 </div>
             `;
             
-            document.getElementById('btnIniciar').disabled = true;
-            document.getElementById('btnIniciar').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Rota em Andamento';
-            
-            setTimeout(() => {
-                showNotification("Rota iniciada com sucesso! GPS ativado.", "success");
-            }, 1000);
+            document.getElementById('loginForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const matricula = document.getElementById('matricula').value.trim().toUpperCase();
+                const senha = document.getElementById('senha').value;
+                const user = validarLogin(matricula, senha);
+                
+                if (user) {
+                    currentUser = user;
+                    render();
+                    showNotification(`Bem-vindo, ${user.nome}!`, "success");
+                } else {
+                    showNotification("Credenciais inválidas!", "error");
+                }
+            });
         }
 
-        // ==================== SIMULAÇÃO DE MOVIMENTO ====================
-        function simularMovimento() {
-            setInterval(() => {
-                db.onibus.forEach(onibus => {
-                    if (onibus.status === 'em_rota') {
-                        // Movimento circular suave
-                        const tempo = Date.now() / 1000;
-                        const raio = 0.008;
-                        const centroLat = -23.5505;
-                        const centroLng = -46.6333;
-                        
-                        onibus.lat = centroLat + Math.sin(tempo * 0.3) * raio;
-                        onibus.lng = centroLng + Math.cos(tempo * 0.4) * raio;
-                        onibus.velocidade = Math.max(25, Math.min(60, 40 + Math.sin(tempo) * 15));
-                        onibus.ultima_atualizacao = new Date().toISOString();
-                        
-                        // Atualizar marcador se estiver na tela do passageiro
-                        if (currentScreen === 'passageiro' && onibusSelecionado && onibusSelecionado.id === onibus.id) {
-                            if (map) {
-                                const key = `bus_${onibus.id}`;
-                                if (markers[key]) {
-                                    markers[key].setLatLng([onibus.lat, onibus.lng]);
-                                }
-                                atualizarInfoPassageiro();
-                            }
-                        }
-                    }
-                });
+        function renderDashboard() {
+            const emRota = onibusAtual?.status === 'em_rota';
+            const rotaAtiva = db.rotas_ativas.find(r => r.onibus_id === onibusAtual?.id);
+            
+            const app = document.getElementById('app');
+            app.innerHTML = `
+                <div class="container">
+                    <div class="header">
+                        <div class="logo">PRO ROTA</div>
+                        <div style="font-size: 14px; margin-top: 5px;">Motorista: ${currentUser.nome}</div>
+                        <button class="btn-sair" onclick="sair()">Sair</button>
+                    </div>
+                    
+                    <div class="nav-menu">
+                        <button class="nav-btn ${currentPage === 'dashboard' ? 'active' : ''}" onclick="mudarPagina('dashboard')">
+                            <i class="fas fa-tachometer-alt"></i> Dashboard
+                        </button>
+                        <button class="nav-btn ${currentPage === 'checklist' ? 'active' : ''}" onclick="mudarPagina('checklist')">
+                            <i class="fas fa-clipboard-list"></i> Checklist
+                        </button>
+                        <button class="nav-btn ${currentPage === 'historico' ? 'active' : ''}" onclick="mudarPagina('historico')">
+                            <i class="fas fa-history"></i> Histórico
+                        </button>
+                    </div>
+                    
+                    <div id="pageContent"></div>
+                </div>
+            `;
+            
+            carregarPagina(currentPage);
+        }
+
+        function carregarPagina(page) {
+            const container = document.getElementById('pageContent');
+            if (!container) return;
+            
+            if (page === 'dashboard') {
+                carregarDashboard(container);
+            } else if (page === 'checklist') {
+                carregarChecklist(container);
+            } else if (page === 'historico') {
+                carregarHistorico(container);
+            }
+        }
+
+        function carregarDashboard(container) {
+            const emRota = onibusAtual?.status === 'em_rota';
+            const rotaAtiva = db.rotas_ativas.find(r => r.onibus_id === onibusAtual?.id);
+            
+            container.innerHTML = `
+                <div class="cards-grid">
+                    <div class="card">
+                        <div class="card-icon"><i class="fas fa-bus"></i></div>
+                        <div class="card-value">${onibusAtual?.numero || '-'}</div>
+                        <div class="card-label">Meu Ônibus</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-icon"><i class="fas fa-tachometer-alt"></i></div>
+                        <div class="card-value" id="velocidadeValue">${onibusAtual?.velocidade || 0} km/h</div>
+                        <div class="card-label">Velocidade</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-icon"><i class="fas fa-flag-checkered"></i></div>
+                        <div class="card-value">${emRota ? 'EM ROTA' : 'PARADO'}</div>
+                        <div class="card-label">Status</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-icon"><i class="fas fa-satellite-dish"></i></div>
+                        <div class="card-value"><i class="fas fa-circle" style="color: ${watchId ? '#198754' : '#ffc107'}; font-size: 12px;"></i> ${watchId ? 'ATIVO' : 'INATIVO'}</div>
+                        <div class="card-label">GPS</div>
+                    </div>
+                </div>
                 
-                // Atualizar lista de ônibus se estiver na tela do passageiro
-                if (currentScreen === 'passageiro' && document.getElementById('listaOnibus') && document.getElementById('listaOnibus').style.display !== 'none') {
-                    mostrarListaOnibus();
-                }
-            }, 3000);
+                <div class="mapa-container">
+                    <div class="gps-status" id="gpsStatusText">
+                        <i class="fas fa-satellite-dish"></i> ${watchId ? 'GPS Ativo' : 'GPS Inativo'}
+                    </div>
+                    <div class="map-controls">
+                        <button class="map-btn" onclick="centralizarMapa()"><i class="fas fa-location-dot"></i> Minha Posição</button>
+                    </div>
+                    <div class="map-controls" style="right: auto; left: 15px; flex-direction: row;">
+                        <button class="zoom-btn" onclick="if(map)map.zoomIn()">+</button>
+                        <button class="zoom-btn" onclick="if(map)map.zoomOut()">-</button>
+                    </div>
+                    <div id="mapaMotorista"></div>
+                </div>
+                
+                ${emRota ? `
+                <div style="margin: 0 20px 20px 20px;">
+                    <button class="btn btn-danger" onclick="finalizarRota()">
+                        <i class="fas fa-stop"></i> Encerrar Rota
+                    </button>
+                </div>
+                ` : ''}
+            `;
+            
+            // Inicializar mapa
+            if (map) map.remove();
+            map = L.map('mapaMotorista').setView([onibusAtual?.lat || -23.5505, onibusAtual?.lng || -46.6333], 14);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap'
+            }).addTo(map);
+            
+            if (onibusAtual) {
+                const icon = L.divIcon({
+                    html: `<div style="background: ${emRota ? '#0d6efd' : '#ffc107'}; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white;"></div>`,
+                    iconSize: [16, 16]
+                });
+                markerOnibus = L.marker([onibusAtual.lat, onibusAtual.lng], { icon: icon }).addTo(map);
+            }
+        }
+
+        function carregarChecklist(container) {
+            const emRota = onibusAtual?.status === 'em_rota';
+            
+            if (emRota) {
+                container.innerHTML = `
+                    <div class="checklist-container">
+                        <div class="checklist-card">
+                            <div class="alert alert-success">
+                                <i class="fas fa-check-circle"></i> <strong>ROTA ATIVA!</strong><br>
+                                🚌 Ônibus ${onibusAtual.numero}<br>
+                                ⚡ Velocidade: ${onibusAtual.velocidade} km/h<br>
+                                📡 GPS: ATIVO
+                            </div>
+                            <button class="btn btn-danger" onclick="finalizarRota()">
+                                <i class="fas fa-stop"></i> Encerrar Rota
+                            </button>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = `
+                <div class="checklist-container">
+                    <div class="checklist-card">
+                        <h2 class="checklist-title"><i class="fas fa-clipboard-list"></i> Checklist de Segurança</h2>
+                        
+                        <div class="checklist-item">
+                            <label>😴 Nível de Sonolência:</label>
+                            <div class="radio-group">
+                                <label><input type="radio" name="sonolencia" value="nao"> Não</label>
+                                <label><input type="radio" name="sonolencia" value="leve"> Leve</label>
+                                <label><input type="radio" name="sonolencia" value="moderada"> Moderada</label>
+                                <label><input type="radio" name="sonolencia" value="intensa"> Intensa</label>
+                            </div>
+                        </div>
+                        
+                        <div class="checklist-item">
+                            <label>✅ Apto para dirigir:</label>
+                            <div class="radio-group">
+                                <label><input type="radio" name="apto" value="sim"> Sim</label>
+                                <label><input type="radio" name="apto" value="nao"> Não</label>
+                            </div>
+                        </div>
+                        
+                        <div class="checklist-item">
+                            <label>⚠️ Condições Adicionais:</label>
+                            <div class="checkbox-group">
+                                <label><input type="checkbox" id="cansado"> Estou cansado(a)</label>
+                                <label><input type="checkbox" id="medicamento"> Consumi medicamento</label>
+                                <label><input type="checkbox" id="dores"> Sinto dores ou mal-estar</label>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Observações:</label>
+                            <textarea id="observacoes" rows="3" placeholder="Digite observações adicionais..."></textarea>
+                        </div>
+                        
+                        <button class="btn btn-primary" onclick="iniciarRotaMotorista()">
+                            <i class="fas fa-play"></i> Iniciar Rota
+                        </button>
+                        <div id="resultadoChecklist"></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function carregarHistorico(container) {
+            const minhasRotas = db.rotas_finalizadas.filter(r => r.motorista_id === currentUser.id);
+            const meusChecklists = db.checklists.filter(c => c.motorista_id === currentUser.id);
+            
+            container.innerHTML = `
+                <div class="table-container">
+                    <h3 style="margin-bottom: 15px;"><i class="fas fa-route"></i> Minhas Rotas</h3>
+                    <table>
+                        <thead>
+                            <tr><th>Data</th><th>Ônibus</th><th>Duração</th><th>Status</th></tr>
+                        </thead>
+                        <tbody>
+                            ${minhasRotas.length === 0 ? '<tr><td colspan="4" style="text-align: center;">Nenhuma rota finalizada</td></tr>' : minhasRotas.map(rota => {
+                                const onibus = db.onibus.find(b => b.id === rota.onibus_id);
+                                const duracao = rota.fim ? Math.round((new Date(rota.fim) - new Date(rota.inicio)) / 60000) : 0;
+                                return `<tr>
+                                    <td>${new Date(rota.inicio).toLocaleDateString()} - ${new Date(rota.inicio).toLocaleTimeString()}</td>
+                                    <td>🚌 ${onibus?.numero || '-'}</td>
+                                    <td>${duracao} minutos</td>
+                                    <td><span class="badge badge-success">Finalizada</span></td>
+                                </tr>`;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="table-container">
+                    <h3 style="margin-bottom: 15px;"><i class="fas fa-clipboard-list"></i> Meus Checklists</h3>
+                    <table>
+                        <thead>
+                            <tr><th>Data</th><th>Sonolência</th><th>Apto</th><th>Observações</th></tr>
+                        </thead>
+                        <tbody>
+                            ${meusChecklists.length === 0 ? '<tr><td colspan="4" style="text-align: center;">Nenhum checklist registrado</td></tr>' : meusChecklists.map(c => `
+                                <tr>
+                                    <td>${new Date(c.data).toLocaleString()}</td>
+                                    <td>${c.sonolencia}</td>
+                                    <td>${c.apto === 'sim' ? '✅ Sim' : '❌ Não'}</td>
+                                    <td>${c.observacoes || '-'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
         }
 
         // ==================== FUNÇÕES GLOBAIS ====================
-        window.renderSelecao = renderSelecao;
-        window.abrirPassageiro = abrirPassageiro;
-        window.abrirMotorista = abrirMotorista;
-        window.buscarOnibus = buscarOnibus;
-        window.selecionarOnibus = selecionarOnibus;
-        window.centralizarOnibus = centralizarOnibus;
-        window.iniciarRotaMotorista = iniciarRotaMotorista;
+        function mudarPagina(page) {
+            currentPage = page;
+            renderDashboard();
+        }
+
+        function iniciarRotaMotorista() {
+            const resultado = document.getElementById('resultadoChecklist');
+            if (iniciarRota()) {
+                if (resultado) resultado.innerHTML = '<div class="alert alert-success">✅ Rota iniciada com sucesso! GPS ativado.</div>';
+                setTimeout(() => {
+                    mudarPagina('dashboard');
+                }, 2000);
+            } else {
+                if (resultado) resultado.innerHTML = '<div class="alert alert-danger">⚠️ ROTA NÃO AUTORIZADA! Verifique o checklist.</div>';
+            }
+        }
+
+        function finalizarRota() {
+            if (encerrarRota()) {
+                showNotification("Rota encerrada com sucesso!", "success");
+                mudarPagina('dashboard');
+            }
+        }
+
+        function centralizarMapa() {
+            if (map && onibusAtual) {
+                map.setView([onibusAtual.lat, onibusAtual.lng], 15);
+            }
+        }
+
+        function sair() {
+            pararGPS();
+            currentUser = null;
+            currentPage = 'dashboard';
+            render();
+        }
+
+        // Expor funções globais
+        window.mudarPagina = mudarPagina;
+            window.iniciarRotaMotorista = iniciarRotaMotorista;
+        window.finalizarRota = finalizarRota;
+        window.centralizarMapa = centralizarMapa;
+        window.sair = sair;
         
         // Iniciar app
-        simularMovimento();
-        renderSelecao();
+        render();
     </script>
 </body>
 </html>
