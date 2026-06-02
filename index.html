@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
-    <title>PRO ROTA - Rastreamento GPS com Minha Localização</title>
+    <title>PRO ROTA - Rastreamento GPS em Tempo Real</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -363,7 +363,7 @@
             border-radius: 24px;
             padding: 40px;
             width: 100%;
-            max-width: 450px;
+            max-width: 480px;
         }
 
         .form-group {
@@ -384,6 +384,54 @@
             border-radius: 8px;
             color: white;
             font-size: 16px;
+        }
+
+        /* Credenciais Box */
+        .credenciais-box {
+            margin-top: 20px;
+            padding: 15px;
+            background: #2a2f4e;
+            border-radius: 12px;
+            font-size: 12px;
+            border-left: 3px solid #0d6efd;
+        }
+
+        .credenciais-box p {
+            margin: 5px 0;
+        }
+
+        .credenciais-box strong {
+            color: #0d6efd;
+        }
+
+        /* Loading */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #2a2f4e;
+            border-top: 4px solid #0d6efd;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
 
         /* Responsivo */
@@ -439,6 +487,11 @@
             .zoom-btn {
                 padding: 8px 12px;
                 font-size: 16px;
+            }
+            
+            .login-box {
+                padding: 25px;
+                margin: 15px;
             }
         }
 
@@ -499,26 +552,125 @@
     <div id="app"></div>
 
     <script>
-        // Banco de Dados Mock
-        const mockDB = {
-            users: [
-                { id: 1, username: 'admin', password: 'admin123', role: 'administrador', name: 'Admin Sistema', matricula: 'ADMIN001' },
-                { id: 2, username: 'MEDE', password: '123456', role: 'motorista', name: 'João Medeiros', matricula: 'MEDE' },
-                { id: 3, username: 'supervisor1', password: 'sup123', role: 'supervisor', name: 'Carlos Supervisor', matricula: 'SUP001' }
-            ],
-            motoristas: [
-                { id: 1, nome: 'João Medeiros', matricula: 'MEDE', cpf: '123.456.789-00', telefone: '(11) 99999-9999', empresa: 'Transporte XYZ', cnh: '123456789', cnh_categoria: 'D', cnh_validade: '2025-12-31', status: 'ativo' }
-            ],
-            onibus: [
-                { id: 1, numero: '3200', placa: 'ABC-1234', modelo: 'Mercedes-Benz O500', empresa: 'Transporte XYZ', ano: 2022, capacidade: 50, status: 'ativo' },
-                { id: 2, numero: '3201', placa: 'DEF-5678', modelo: 'Volvo B340', empresa: 'Transporte XYZ', ano: 2021, capacidade: 48, status: 'ativo' }
-            ],
+        // ==================== CARREGAR CREDENCIAIS DO ARQUIVO EXTERNO ====================
+        
+        let credentialsDB = null;
+        let externalOnibus = null;
+        
+        async function loadCredentials() {
+            try {
+                // Tentar carregar o arquivo credenciais.json
+                const response = await fetch('credenciais.json');
+                if (response.ok) {
+                    const data = await response.json();
+                    credentialsDB = data.usuarios || data;
+                    externalOnibus = data.onibus || [];
+                    console.log('✅ Credenciais carregadas do arquivo externo!');
+                    console.log(`📋 ${credentialsDB.length} usuários carregados`);
+                    return true;
+                }
+            } catch (error) {
+                console.log('⚠️ Arquivo de credenciais não encontrado, usando banco interno');
+            }
+            
+            // Fallback para banco interno
+            credentialsDB = [
+                { id: 1, matricula: "MEDE", senha: "123456", nome: "João Medeiros", role: "motorista", empresa: "Transporte XYZ", status: "ativo", cnh: "123456789", cnh_categoria: "D", cnh_validade: "2025-12-31" },
+                { id: 2, matricula: "M002", senha: "123456", nome: "Maria Santos", role: "motorista", empresa: "Transporte XYZ", status: "ativo", cnh: "987654321", cnh_categoria: "D", cnh_validade: "2024-12-31" },
+                { id: 3, matricula: "M003", senha: "123456", nome: "Pedro Oliveira", role: "motorista", empresa: "Transporte XYZ", status: "ativo", cnh: "456789123", cnh_categoria: "D", cnh_validade: "2026-06-30" },
+                { id: 4, matricula: "ADMIN001", senha: "admin123", nome: "Admin Sistema", role: "administrador", empresa: "PRO ROTA", status: "ativo" },
+                { id: 5, matricula: "SUP001", senha: "sup123", nome: "Carlos Supervisor", role: "supervisor", empresa: "PRO ROTA", status: "ativo" },
+                { id: 6, matricula: "OP001", senha: "op123", nome: "Mariana Operadora", role: "operador", empresa: "PRO ROTA", status: "ativo" },
+                { id: 7, matricula: "VIEW001", senha: "view123", nome: "Visitante Visualizador", role: "visualizador", empresa: "Externo", status: "ativo" }
+            ];
+            
+            externalOnibus = [
+                { id: 1, numero: "3200", placa: "ABC-1234", modelo: "Mercedes-Benz O500", empresa: "Transporte XYZ", ano: 2022, capacidade: 50, status: "ativo" },
+                { id: 2, numero: "3201", placa: "DEF-5678", modelo: "Volvo B340", empresa: "Transporte XYZ", ano: 2021, capacidade: 48, status: "ativo" },
+                { id: 3, numero: "3202", placa: "GHI-9012", modelo: "Scania K360", empresa: "Transporte XYZ", ano: 2023, capacidade: 52, status: "manutencao" }
+            ];
+            
+            console.log('📦 Usando banco de dados interno');
+            return false;
+        }
+
+        function validateCredentials(matricula, senha) {
+            if (!credentialsDB) {
+                return null;
+            }
+            
+            const user = credentialsDB.find(u => 
+                u.matricula === matricula && u.senha === senha && u.status === 'ativo'
+            );
+            
+            if (user) {
+                return {
+                    id: user.id,
+                    username: user.matricula,
+                    password: user.senha,
+                    role: user.role,
+                    name: user.nome,
+                    matricula: user.matricula,
+                    empresa: user.empresa
+                };
+            }
+            
+            return null;
+        }
+
+        function getMotoristasFromCredentials() {
+            if (!credentialsDB) return [];
+            return credentialsDB.filter(u => u.role === 'motorista');
+        }
+
+        function getOnibusFromCredentials() {
+            return externalOnibus;
+        }
+
+        // ==================== BANCO DE DADOS MOCK ====================
+        
+        let mockDB = {
+            users: [],
+            motoristas: [],
+            onibus: [],
             rotas_ativas: [],
             rotas_finalizadas: [],
             gps_logs: [],
             checklists: [],
             alertas: []
         };
+
+        function initializeDatabase() {
+            // Converter credenciais para formato do banco
+            mockDB.users = credentialsDB.map(u => ({
+                id: u.id,
+                username: u.matricula,
+                password: u.senha,
+                role: u.role,
+                name: u.nome,
+                matricula: u.matricula
+            }));
+            
+            mockDB.motoristas = credentialsDB.filter(u => u.role === 'motorista').map(m => ({
+                id: m.id,
+                nome: m.nome,
+                matricula: m.matricula,
+                cpf: m.cpf || '000.000.000-00',
+                telefone: m.telefone || '(11) 99999-9999',
+                empresa: m.empresa || 'Transporte XYZ',
+                cnh: m.cnh || '123456789',
+                cnh_categoria: m.cnh_categoria || 'D',
+                cnh_validade: m.cnh_validade || '2025-12-31',
+                status: 'ativo'
+            }));
+            
+            mockDB.onibus = externalOnibus.length > 0 ? externalOnibus : [
+                { id: 1, numero: "3200", placa: "ABC-1234", modelo: "Mercedes-Benz O500", empresa: "Transporte XYZ", ano: 2022, capacidade: 50, status: "ativo" },
+                { id: 2, numero: "3201", placa: "DEF-5678", modelo: "Volvo B340", empresa: "Transporte XYZ", ano: 2021, capacidade: 48, status: "ativo" }
+            ];
+            
+            console.log('✅ Banco de dados inicializado com sucesso!');
+        }
 
         let currentUser = null;
         let currentPage = 'dashboard';
@@ -550,7 +702,6 @@
                     const { latitude, longitude, accuracy, speed, heading } = position.coords;
                     currentPosition = { lat: latitude, lng: longitude };
                     
-                    // Atualizar marcador de localização do usuário
                     updateUserLocationOnMap(latitude, longitude, accuracy);
                     
                     const gpsLog = {
@@ -650,8 +801,6 @@
             }, 5000);
         }
 
-        // ==================== LOCALIZAÇÃO DO USUÁRIO NO MAPA ====================
-        
         function showUserLocation() {
             if (!navigator.geolocation) {
                 showNotification('Seu navegador não suporta geolocalização', 'error');
@@ -665,7 +814,6 @@
                     const { latitude, longitude, accuracy } = position.coords;
                     currentPosition = { lat: latitude, lng: longitude };
                     
-                    // Centralizar mapa na localização do usuário
                     if (map) {
                         map.setView([latitude, longitude], 16);
                         updateUserLocationOnMap(latitude, longitude, accuracy);
@@ -698,12 +846,10 @@
         function updateUserLocationOnMap(lat, lng, accuracy) {
             if (!map) return;
             
-            // Remover marcador antigo
             if (userLocationMarker) {
                 map.removeLayer(userLocationMarker);
             }
             
-            // Criar ícone personalizado para localização do usuário
             const userIcon = L.divIcon({
                 html: `
                     <div style="position: relative;">
@@ -724,7 +870,6 @@
                 </div>
             `).openPopup();
             
-            // Adicionar círculo de precisão
             if (accuracy) {
                 const accuracyCircle = L.circle([lat, lng], {
                     radius: accuracy,
@@ -734,7 +879,6 @@
                     weight: 1
                 }).addTo(map);
                 
-                // Remover círculo após 5 segundos
                 setTimeout(() => {
                     if (accuracyCircle) map.removeLayer(accuracyCircle);
                 }, 5000);
@@ -750,7 +894,6 @@
             }
         }
 
-        // Funções de Zoom
         function zoomIn() {
             if (map) map.zoomIn();
         }
@@ -851,7 +994,7 @@
                 return;
             }
 
-            let html = '<tr><thead><tr><th>Número</th><th>Motorista</th><th>Velocidade</th><th>Última Atualização</th><th>Status</th></tr></thead><tbody>';
+            let html = '<table><thead><tr><th>Número</th><th>Motorista</th><th>Velocidade</th><th>Última Atualização</th><th>Status</th></tr></thead><tbody>';
             activeRoutes.forEach(route => {
                 const bus = mockDB.onibus.find(b => b.id === route.onibus_id);
                 const driver = mockDB.motoristas.find(m => m.id === route.motorista_id);
@@ -921,7 +1064,7 @@
                     <td>~ ${previsao} minutos</td>
                 </tr>`;
             });
-            html += '</tbody><tr>';
+            html += '</tbody></table>';
             container.innerHTML = html;
         }
 
@@ -937,6 +1080,9 @@
 
         function renderLogin() {
             const app = document.getElementById('app');
+            const motoristas = getMotoristasFromCredentials();
+            const motoristasList = motoristas.map(m => m.matricula).join(', ');
+            
             app.innerHTML = `
                 <div class="login-container">
                     <div class="login-box">
@@ -947,7 +1093,7 @@
                         <form id="loginForm">
                             <div class="form-group">
                                 <label><i class="fas fa-user"></i> Matrícula</label>
-                                <input type="text" id="username" placeholder="Ex: MEDE" value="MEDE" required>
+                                <input type="text" id="username" placeholder="Ex: MEDE" value="MEDE" required autocomplete="off">
                             </div>
                             <div class="form-group">
                                 <label><i class="fas fa-lock"></i> Senha</label>
@@ -957,11 +1103,16 @@
                                 <i class="fas fa-sign-in-alt"></i> Entrar
                             </button>
                         </form>
-                        <div style="margin-top: 20px; padding: 15px; background: #2a2f4e; border-radius: 12px;">
-                            <p style="font-size: 12px; margin: 0;"><i class="fas fa-location-dot"></i> <strong>Funcionalidades:</strong></p>
-                            <p style="font-size: 12px; margin: 5px 0;">📍 Botão "Minha Localização" no mapa</p>
-                            <p style="font-size: 12px; margin: 5px 0;">🔍 Zoom + e - para ampliar o mapa</p>
-                            <p style="font-size: 12px;">📋 Motorista MEDE - senha: 123456</p>
+                        
+                        <div class="credenciais-box">
+                            <p><i class="fas fa-key"></i> <strong>Credenciais Disponíveis:</strong></p>
+                            <p>🚌 <strong>Motoristas:</strong> ${motoristasList} (senha: 123456)</p>
+                            <p>👑 <strong>Admin:</strong> ADMIN001 (senha: admin123)</p>
+                            <p>👁️ <strong>Supervisor:</strong> SUP001 (senha: sup123)</p>
+                            <p>📊 <strong>Operador:</strong> OP001 (senha: op123)</p>
+                            <p>👀 <strong>Visualizador:</strong> VIEW001 (senha: view123)</p>
+                            <hr style="margin: 10px 0; border-color: #3a3f5e;">
+                            <p><i class="fas fa-info-circle"></i> <strong>Dica:</strong> Use MATRÍCULA <strong>MEDE</strong> para testar o GPS do motorista!</p>
                         </div>
                     </div>
                 </div>
@@ -969,17 +1120,17 @@
 
             document.getElementById('loginForm').addEventListener('submit', (e) => {
                 e.preventDefault();
-                const username = document.getElementById('username').value.trim();
+                const username = document.getElementById('username').value.trim().toUpperCase();
                 const password = document.getElementById('password').value;
                 
-                const user = mockDB.users.find(u => u.username === username && u.password === password);
+                const user = validateCredentials(username, password);
                 if (user) {
                     currentUser = user;
                     localStorage.setItem('user', JSON.stringify(user));
                     render();
                     showNotification(`✅ Bem-vindo, ${user.name}!`, 'success');
                 } else {
-                    showNotification('❌ Credenciais inválidas!', 'error');
+                    showNotification('❌ Credenciais inválidas! Verifique matrícula e senha.', 'error');
                 }
             });
         }
@@ -1005,7 +1156,7 @@
                         <div class="top-bar">
                             <h2 class="page-title">${getPageTitle()}</h2>
                             <div>
-                                <i class="fas fa-user-circle"></i> ${currentUser.name}
+                                <i class="fas fa-user-circle"></i> ${currentUser.name} (${currentUser.role})
                                 <button class="btn btn-danger" style="margin-left: 15px;" onclick="logout()">
                                     <i class="fas fa-sign-out-alt"></i> Sair
                                 </button>
@@ -1036,12 +1187,16 @@
         function getNavItems() {
             const items = [
                 { id: 'dashboard', icon: 'fa-tachometer-alt', label: 'Dashboard' },
-                { id: 'tracking', icon: 'fa-map-marker-alt', label: 'Rastreamento' },
-                { id: 'checklist', icon: 'fa-clipboard-list', label: 'Checklist' },
-                { id: 'public', icon: 'fa-eye', label: 'Portal Público' }
+                { id: 'tracking', icon: 'fa-map-marker-alt', label: 'Rastreamento' }
             ];
             
-            if (currentUser.role === 'administrador') {
+            if (currentUser.role === 'motorista') {
+                items.push({ id: 'checklist', icon: 'fa-clipboard-list', label: 'Checklist' });
+            }
+            
+            items.push({ id: 'public', icon: 'fa-eye', label: 'Portal Público' });
+            
+            if (currentUser.role === 'administrador' || currentUser.role === 'supervisor') {
                 items.push({ id: 'alerts', icon: 'fa-bell', label: 'Alertas' });
             }
             
@@ -1114,7 +1269,6 @@
                 </div>
             `;
 
-            // Inicializar mapa
             if (map) map.remove();
             map = L.map('map').setView([-23.5505, -46.6333], 13);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -1122,12 +1276,8 @@
                 maxZoom: 19
             }).addTo(map);
             
-            // Adicionar controle de zoom padrão do Leaflet (opcional, manteremos os nossos)
-            // map.zoomControl.remove(); // Descomente se quiser remover os controles padrão
-            
             window.map_map = map;
             
-            // Adicionar marcadores de ônibus existentes
             mockDB.rotas_ativas.forEach(route => {
                 if (route.ultima_lat && route.ultima_lng) {
                     const bus = mockDB.onibus.find(b => b.id === route.onibus_id);
@@ -1148,7 +1298,6 @@
             updateDashboardStats();
             updateBusesList();
             
-            // Se for motorista, tentar mostrar localização automaticamente
             if (currentUser.role === 'motorista') {
                 setTimeout(() => {
                     showUserLocation();
@@ -1163,16 +1312,12 @@
                         <i class="fas fa-map-marked-alt"></i>
                         <span>Rastreamento de veículos</span>
                     </div>
-                    <button class="locate-btn" id="locateUserBtnTracking" onclick="window.showUserLocation()">
+                    <button class="locate-btn" id="locateUserBtnTracking" onclick="if(window.map_trackingMap) { window.map_trackingMap.setView([currentPosition.lat, currentPosition.lng], 15); }">
                         <i class="fas fa-location-dot"></i> Minha Localização
                     </button>
                     <div class="custom-zoom-controls">
-                        <button class="zoom-btn" onclick="if(window.map_trackingMap) window.map_trackingMap.zoomIn()">
-                            <i class="fas fa-plus"></i>
-                        </button>
-                        <button class="zoom-btn" onclick="if(window.map_trackingMap) window.map_trackingMap.zoomOut()">
-                            <i class="fas fa-minus"></i>
-                        </button>
+                        <button class="zoom-btn" onclick="if(window.map_trackingMap) window.map_trackingMap.zoomIn()">+</button>
+                        <button class="zoom-btn" onclick="if(window.map_trackingMap) window.map_trackingMap.zoomOut()">-</button>
                     </div>
                     <div id="trackingMap"></div>
                 </div>
@@ -1239,7 +1384,7 @@
                 <div style="max-width: 700px; margin: 0 auto;">
                     <div class="card" style="background: #1a1f3e; padding: 30px; border-radius: 16px;">
                         <h3><i class="fas fa-clipboard-list"></i> Checklist de Aptidão</h3>
-                        <p>Motorista: <strong>${motorista?.nome}</strong></p>
+                        <p>Motorista: <strong>${motorista?.nome}</strong> (${motorista?.matricula})</p>
                         <div class="alert alert-info">
                             <i class="fas fa-location-dot"></i> <strong>Ativação do GPS:</strong><br>
                             Ao iniciar a rota, o sistema solicitará permissão para acessar sua localização.<br>
@@ -1310,7 +1455,6 @@
                     return;
                 }
                 
-                // Criar nova rota
                 const novaRota = {
                     id: Date.now(),
                     onibus_id: availableBus.id,
@@ -1371,7 +1515,7 @@
         async function loadPublicContent(container) {
             container.innerHTML = `
                 <div class="map-container" style="height: 450px;">
-                    <button class="locate-btn" id="locateUserBtnPublic" onclick="if(window.map_publicMap) window.map_publicMap.setView([currentPosition.lat, currentPosition.lng], 15)">
+                    <button class="locate-btn" id="locateUserBtnPublic" onclick="if(window.map_publicMap && currentPosition) { window.map_publicMap.setView([currentPosition.lat, currentPosition.lng], 15); }">
                         <i class="fas fa-location-dot"></i> Minha Localização
                     </button>
                     <div class="custom-zoom-controls">
@@ -1417,8 +1561,8 @@
                     <table>
                         <thead><tr><th>Tipo</th><th>Descrição</th><th>Data/Hora</th></tr></thead>
                         <tbody>
-                            ${mockDB.alertas.map(alert => `<tr><td>⚠️ ${alert.tipo}</td><td>${alert.descricao}</td><td>${new Date(alert.data).toLocaleString()}</td>`).join('')}
-                            ${mockDB.alertas.length === 0 ? '<tr><td colspan="3" style="text-align: center;">Nenhum alerta registrado</td>' : ''}
+                            ${mockDB.alertas.map(alert => `<tr><td>⚠️ ${alert.tipo}</td><td>${alert.descricao}</td><td>${new Date(alert.data).toLocaleString()}</td></tr>`).join('')}
+                            ${mockDB.alertas.length === 0 ? '<tr><td colspan="3" style="text-align: center;">Nenhum alerta registrado</td></tr>' : ''}
                         </tbody>
                     </table>
                 </div>
@@ -1488,12 +1632,36 @@
         window.zoomIn = () => { if (map) map.zoomIn(); };
         window.zoomOut = () => { if (map) map.zoomOut(); };
 
-        // Inicialização
-        const savedUser = localStorage.getItem('user');
-        if (savedUser) {
-            currentUser = JSON.parse(savedUser);
+        // ==================== INICIALIZAÇÃO ====================
+        
+        async function init() {
+            // Mostrar loading
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'loading-overlay';
+            loadingDiv.innerHTML = '<div class="spinner"></div><p>Carregando sistema...</p>';
+            document.body.appendChild(loadingDiv);
+            
+            // Carregar credenciais
+            await loadCredentials();
+            initializeDatabase();
+            
+            // Remover loading
+            loadingDiv.remove();
+            
+            // Verificar usuário salvo
+            const savedUser = localStorage.getItem('user');
+            if (savedUser) {
+                const parsedUser = JSON.parse(savedUser);
+                const validUser = validateCredentials(parsedUser.matricula, parsedUser.password);
+                if (validUser) {
+                    currentUser = validUser;
+                }
+            }
+            
+            render();
         }
-        render();
+        
+        init();
     </script>
 </body>
 </html>
