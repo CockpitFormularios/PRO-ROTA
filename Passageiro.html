@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>PRO ROTA - Acompanhar Ônibus</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="storage.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #0a0e27; color: #e0e0e0; }
+        .container { min-height: 100vh; background: linear-gradient(135deg, #0a1e3c 0%, #0d2b4e 100%); }
+        .header { background: rgba(10,30,60,0.95); padding: 20px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .logo { font-size: 28px; font-weight: 800; background: linear-gradient(135deg, #0d6efd, #198754); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .subtitle { font-size: 12px; color: #aaa; margin-top: 5px; }
+        .busca-container { padding: 20px; background: #1a1f3e; margin: -20px 15px 0 15px; border-radius: 20px; box-shadow: 0 5px 20px rgba(0,0,0,0.3); }
+        .busca-box { display: flex; align-items: center; gap: 10px; background: #2a2f4e; border-radius: 50px; padding: 5px 5px 5px 20px; }
+        .busca-box input { flex: 1; background: transparent; border: none; padding: 14px 0; color: white; font-size: 16px; outline: none; }
+        .busca-box input::placeholder { color: #6c757d; }
+        .busca-box button { background: #0d6efd; border: none; border-radius: 50px; padding: 10px 25px; color: white; font-weight: 600; cursor: pointer; }
+        .mapa-container { margin: 15px; height: 400px; border-radius: 20px; overflow: hidden; position: relative; background: #1a1f3e; }
+        #mapaPassageiro { height: 100%; width: 100%; }
+        .map-controls { position: absolute; bottom: 15px; right: 15px; z-index: 1000; display: flex; flex-direction: column; gap: 8px; }
+        .map-btn, .zoom-btn { background: #1a1f3e; color: white; border: none; border-radius: 40px; padding: 10px 14px; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.3); }
+        .onibus-list { padding: 0 15px; max-height: 300px; overflow-y: auto; }
+        .onibus-card { background: #1a1f3e; border-radius: 16px; padding: 15px; margin-bottom: 10px; cursor: pointer; transition: all 0.3s; border: 2px solid transparent; }
+        .onibus-card:hover { border-color: #0d6efd; transform: translateX(5px); }
+        .onibus-card.selecionado { border-color: #198754; background: #1a2d1a; }
+        .onibus-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .onibus-numero { font-size: 20px; font-weight: 800; }
+        .status-badge { background: #198754; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+        .onibus-info { display: flex; gap: 15px; font-size: 13px; color: #aaa; }
+        .info-painel { background: #1a1f3e; margin: 15px; border-radius: 20px; padding: 20px; box-shadow: 0 -5px 20px rgba(0,0,0,0.3); }
+        .info-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #2a2f4e; }
+        .info-onibus-numero { font-size: 24px; font-weight: 800; }
+        .info-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 15px; margin-bottom: 20px; }
+        .info-item { text-align: center; padding: 12px; background: #2a2f4e; border-radius: 16px; }
+        .info-label { font-size: 12px; color: #aaa; margin-bottom: 5px; }
+        .info-value { font-size: 20px; font-weight: 700; }
+        .previsao-card { background: linear-gradient(135deg, #0d6efd, #198754); border-radius: 16px; padding: 15px; text-align: center; }
+        .previsao-tempo { font-size: 32px; font-weight: 800; }
+        .comunicacao-status { position: fixed; bottom: 10px; right: 10px; background: rgba(0,0,0,0.7); padding: 5px 10px; border-radius: 20px; font-size: 10px; z-index: 1000; }
+        @keyframes pulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.1); opacity: 0.8; } }
+        .bus-marker { filter: drop-shadow(0 0 5px #0d6efd); animation: pulse 2s infinite; }
+        @media (max-width:768px) { .info-value { font-size: 16px; } .previsao-tempo { font-size: 24px; } .mapa-container { height: 350px; } }
+    </style>
+</head>
+<body>
+    <div id="app"></div>
+
+    <script>
+        let map = null;
+        let markers = {};
+        let onibusSelecionado = null;
+        let dados = null;
+
+        function calcularDistancia(lat1, lon1, lat2, lon2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        function calcularTempo(distanciaKm, velocidadeKmh) {
+            if (velocidadeKmh <= 0) return "Calculando...";
+            const minutos = Math.round((distanciaKm / velocidadeKmh) * 60);
+            if (minutos < 1) return "Chegando";
+            if (minutos < 60) return `${minutos} minutos`;
+            return `${Math.floor(minutos/60)}h ${minutos%60}min`;
+        }
+
+        function criarIconeOnibus(velocidade = 0) {
+            const cor = velocidade > 0 ? '#0d6efd' : '#6c757d';
+            const html = `<div style="position:relative;text-align:center;"><i class="fas fa-bus" style="font-size:28px;color:${cor};filter:drop-shadow(0 2px 5px rgba(0,0,0,0.3));"></i><div style="position:absolute;top:-5px;left:50%;transform:translateX(-50%);background:${cor};color:white;font-size:9px;font-weight:bold;padding:2px 5px;border-radius:10px;white-space:nowrap;">${velocidade} km/h</div></div>`;
+            return L.divIcon({ html: html, iconSize: [28, 28], className: 'bus-marker', popupAnchor: [0, -15] });
+        }
+
+        function atualizarMapa() {
+            if (!map || !dados) return;
+            const onibusEmRota = dados.onibus.filter(b => b.rota_ativa === true);
+            onibusEmRota.forEach(onibus => {
+                const key = `bus_${onibus.id}`;
+                const icone = criarIconeOnibus(onibus.velocidade);
+                if (markers[key]) {
+                    markers[key].setLatLng([onibus.lat, onibus.lng]);
+                    markers[key].setIcon(icone);
+                    markers[key].setPopupContent(`<div style="font-family:'Inter',sans-serif;min-width:200px;"><strong><i class="fas fa-bus"></i> Ônibus ${onibus.numero}</strong><br><i class="fas fa-id-card"></i> Motorista: ${onibus.motorista || 'Motorista'}<br><i class="fas fa-tachometer-alt"></i> Velocidade: ${onibus.velocidade} km/h<br><i class="fas fa-clock"></i> ${new Date(onibus.ultima_atualizacao).toLocaleTimeString()}</div>`);
+                } else {
+                    const marker = L.marker([onibus.lat, onibus.lng], { icon: icone }).addTo(map);
+                    marker.bindPopup(`<div style="font-family:'Inter',sans-serif;min-width:200px;"><strong><i class="fas fa-bus"></i> Ônibus ${onibus.numero}</strong><br><i class="fas fa-id-card"></i> Motorista: ${onibus.motorista || 'Motorista'}<br><i class="fas fa-tachometer-alt"></i> Velocidade: ${onibus.velocidade} km/h<br><i class="fas fa-clock"></i> ${new Date(onibus.ultima_atualizacao).toLocaleTimeString()}</div>`);
+                    markers[key] = marker;
+                }
+            });
+        }
+
+        function atualizarListaOnibus() {
+            const container = document.getElementById('onibusList');
+            if (!container || !dados) return;
+            const onibusEmRota = dados.onibus.filter(b => b.rota_ativa === true);
+            if (onibusEmRota.length === 0) {
+                container.innerHTML = `<div style="text-align:center;padding:40px;color:#6c757d;"><i class="fas fa-bus" style="font-size:48px;margin-bottom:15px;"></i><p>Nenhum ônibus em rota no momento</p><p style="font-size:12px;margin-top:10px;">⚡ Os ônibus aparecerão aqui quando o motorista iniciar a rota!</p></div>`;
+                return;
+            }
+            container.innerHTML = onibusEmRota.map(onibus => `<div class="onibus-card" onclick="selecionarOnibus(${onibus.id})" data-id="${onibus.id}"><div class="onibus-header"><div class="onibus-numero"><i class="fas fa-bus"></i> Ônibus ${onibus.numero}</div><div class="status-badge">● EM ROTA</div></div><div class="onibus-info"><span><i class="fas fa-id-card"></i> ${onibus.motorista || 'Motorista'}</span><span><i class="fas fa-tachometer-alt"></i> ${onibus.velocidade} km/h</span><span><i class="fas fa-clock"></i> ${new Date(onibus.ultima_atualizacao).toLocaleTimeString()}</span></div></div>`).join('');
+        }
+
+        function atualizarPainel() {
+            if (!onibusSelecionado) return;
+            const pontoRef = { lat: -23.5505, lng: -46.6333 };
+            const distancia = calcularDistancia(onibusSelecionado.lat, onibusSelecionado.lng, pontoRef.lat, pontoRef.lng);
+            const tempo = calcularTempo(distancia, onibusSelecionado.velocidade);
+            const painel = document.getElementById('infoPainel');
+            if (painel) {
+                painel.innerHTML = `
+                    <div class="info-header"><div class="info-onibus-numero"><i class="fas fa-bus"></i> Ônibus ${onibusSelecionado.numero}</div><div class="status-badge">● EM ROTA</div></div>
+                    <div class="info-grid"><div class="info-item"><div class="info-label"><i class="fas fa-id-card"></i> Motorista</div><div class="info-value">${onibusSelecionado.motorista || '---'}</div></div><div class="info-item"><div class="info-label"><i class="fas fa-tachometer-alt"></i> Velocidade</div><div class="info-value">${onibusSelecionado.velocidade} km/h</div></div><div class="info-item"><div class="info-label"><i class="fas fa-road"></i> Distância</div><div class="info-value">${distancia.toFixed(1)} km</div></div><div class="info-item"><div class="info-label"><i class="fas fa-clock"></i> Atualização</div><div class="info-value">${new Date(onibusSelecionado.ultima_atualizacao).toLocaleTimeString()}</div></div></div>
+                    <div class="previsao-card"><div class="previsao-label">⏱️ PREVISÃO DE CHEGADA</div><div class="previsao-tempo">${tempo}</div><div style="font-size:11px;opacity:0.8;">Baseado na velocidade atual</div></div>
+                `;
+            }
+        }
+
+        function selecionarOnibus(id) {
+            onibusSelecionado = dados.onibus.find(b => b.id === id);
+            if (!onibusSelecionado) return;
+            document.querySelectorAll('.onibus-card').forEach(card => { card.classList.remove('selecionado'); if (card.dataset.id == id) card.classList.add('selecionado'); });
+            if (map) { map.setView([onibusSelecionado.lat, onibusSelecionado.lng], 15); const key = `bus_${id}`; if (markers[key]) markers[key].openPopup(); }
+            atualizarPainel();
+        }
+
+        function buscarOnibus() {
+            const busca = document.getElementById('buscaInput').value.trim();
+            if (!busca) { alert("Digite o número do ônibus!"); return; }
+            const onibus = dados.onibus.find(b => b.numero === busca && b.rota_ativa === true);
+            if (!onibus) { alert(`Ônibus ${busca} não está em rota!`); return; }
+            selecionarOnibus(onibus.id);
+        }
+
+        function centralizarNoOnibus() {
+            if (map && onibusSelecionado) map.setView([onibusSelecionado.lat, onibusSelecionado.lng], 16);
+            else if (map) { const primeiro = dados.onibus.find(b => b.rota_ativa === true); if (primeiro) map.setView([primeiro.lat, primeiro.lng], 14); }
+        }
+
+        function carregarDados() {
+            dados = JSON.parse(localStorage.getItem('pro_rota_onibus')) || window.ProRota.iniciarStorage();
+            atualizarListaOnibus();
+            atualizarMapa();
+            if (onibusSelecionado) {
+                const atualizado = dados.onibus.find(b => b.id === onibusSelecionado.id);
+                if (atualizado) { onibusSelecionado = atualizado; atualizarPainel(); }
+            }
+            document.getElementById('comunicacaoStatus').innerHTML = `<i class="fas fa-wifi"></i> Conectado - Dados em tempo real`;
+        }
+
+        function render() {
+            const app = document.getElementById('app');
+            app.innerHTML = `
+                <div class="container">
+                    <div class="header"><div class="logo"><i class="fas fa-bus"></i> PRO ROTA</div><div class="subtitle">Acompanhamento de Ônibus em Tempo Real</div></div>
+                    <div class="busca-container"><div class="busca-box"><i class="fas fa-search"></i><input type="text" id="buscaInput" placeholder="Digite o número do ônibus... Ex: 3200" autocomplete="off"><button onclick="buscarOnibus()">Buscar</button></div></div>
+                    <div class="mapa-container"><div class="map-controls"><button class="map-btn" onclick="centralizarNoOnibus()"><i class="fas fa-location-dot"></i> Centralizar</button></div><div class="map-controls" style="right:auto;left:15px;flex-direction:row"><button class="zoom-btn" onclick="if(map)map.zoomIn()">+</button><button class="zoom-btn" onclick="if(map)map.zoomOut()">-</button></div><div id="mapaPassageiro"></div></div>
+                    <div class="onibus-list" id="onibusList"></div>
+                    <div id="infoPainel" class="info-painel"><div style="text-align:center;padding:20px;color:#6c757d;"><i class="fas fa-bus" style="font-size:48px;margin-bottom:15px;"></i><p>Selecione um ônibus para ver mais detalhes</p><p style="font-size:12px;margin-top:10px;">🚌 Os ônibus aparecem quando o motorista iniciar a rota!</p></div></div>
+                    <div class="comunicacao-status" id="comunicacaoStatus"><i class="fas fa-sync-alt fa-spin"></i> Aguardando dados...</div>
+                </div>
+            `;
+            if (map) map.remove();
+            map = L.map('mapaPassageiro').setView([-23.5505, -46.6333], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+            document.getElementById('buscaInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') buscarOnibus(); });
+            carregarDados();
+            window.ProRota.escutarMudancas((novosDados) => { dados = novosDados; carregarDados(); });
+            setInterval(() => { if (dados) carregarDados(); }, 5000);
+        }
+
+        window.buscarOnibus = buscarOnibus;
+        window.selecionarOnibus = selecionarOnibus;
+        window.centralizarNoOnibus = centralizarNoOnibus;
+        render();
+    </script>
+</body>
+</html>
