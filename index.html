@@ -274,7 +274,7 @@ function iniciarRastreamentoMotorista(motoristaId, passageiroLat, passageiroLng)
   driverInterval = setInterval(buscarLocalizacao, 3000);
 }
 
-// ========== POLLING SIMPLES E EFICAZ ==========
+// ========== POLLING SIMPLES ==========
 function iniciarPolling() {
   if (pollingInterval) clearInterval(pollingInterval);
   
@@ -294,11 +294,9 @@ function iniciarPolling() {
       if (corridaAtiva && corridaAtiva.length > 0) {
         const novaCorrida = corridaAtiva[0];
         
-        // Verificar se mudou
         if (!currentRide || currentRide.id !== novaCorrida.id || currentRide.status !== novaCorrida.status) {
           console.log('Atualizando passageiro:', novaCorrida.status);
           
-          // Corrida finalizada
           if (novaCorrida.status === 'finalizado') {
             showToast(`🏁 Corrida finalizada! R$ ${novaCorrida.preco}`, 'success');
             showRideCompletedModal(novaCorrida.preco, novaCorrida.destino);
@@ -310,7 +308,6 @@ function iniciarPolling() {
             return;
           }
           
-          // Motorista aceitou
           if (novaCorrida.status === 'aceito' && (!currentRide || currentRide.status !== 'aceito')) {
             showToast(`✅ Motorista aceitou sua corrida!`, 'success');
             if (novaCorrida.motorista_id && novaCorrida.origem_lat) {
@@ -318,12 +315,10 @@ function iniciarPolling() {
             }
           }
           
-          // Motorista chegou
           if (novaCorrida.status === 'chegando' && (!currentRide || currentRide.status !== 'chegando')) {
             showToast(`📍 Motorista chegou ao local!`, 'success');
           }
           
-          // Corrida iniciada
           if (novaCorrida.status === 'emCurso' && (!currentRide || currentRide.status !== 'emCurso')) {
             showToast(`🚗 Corrida em andamento!`, 'success');
           }
@@ -342,7 +337,6 @@ function iniciarPolling() {
     
     // Para MOTORISTA
     if (currentUser.tipo === 'motorista') {
-      // Verificar corrida ativa
       const { data: corridaAtiva } = await supabase
         .from('corridas')
         .select('*')
@@ -371,7 +365,7 @@ function iniciarPolling() {
         renderScreen();
       }
       
-      // Buscar solicitações (apenas se não estiver em corrida)
+      // Buscar solicitações
       if (!currentRide) {
         const { data: solicitacoes } = await supabase
           .from('corridas')
@@ -448,7 +442,7 @@ async function solicitarCorrida(destino, tipo) {
   
   const { error } = await supabase.from('corridas').insert([novaCorrida]);
   if (error) {
-    showToast('Erro ao solicitar corrida', 'error');
+    showToast('Erro ao solicitar corrida: ' + error.message, 'error');
     return;
   }
   
@@ -472,10 +466,11 @@ async function aceitarCorrida(ride) {
     .eq('id', ride.id);
   
   if (error) {
-    showToast('Erro ao aceitar corrida', 'error');
+    showToast('Erro ao aceitar corrida: ' + error.message, 'error');
+    console.error(error);
   } else {
     currentRide = { ...ride, status: 'aceito', motorista_id: userId };
-    showToast(`✅ Corrida aceita! Vá buscar o passageiro.`, 'success');
+    showToast(`✅ Corrida aceita!`, 'success');
     renderScreen();
   }
 }
@@ -513,13 +508,18 @@ async function cancelarCorrida(tipo) {
 async function motoristaChegou() {
   if (!currentRide) return;
   console.log('Motorista chegou no local!');
+  
   const { error } = await supabase
     .from('corridas')
-    .update({ status: 'chegando', chegando_em: new Date().toISOString() })
+    .update({ 
+      status: 'chegando', 
+      chegando_em: new Date().toISOString() 
+    })
     .eq('id', currentRide.id);
   
   if (error) {
-    showToast('Erro ao atualizar status', 'error');
+    showToast('Erro ao atualizar status: ' + error.message, 'error');
+    console.error('Erro detalhado:', error);
   } else {
     showToast('✅ Você chegou ao local!', 'success');
     currentRide.status = 'chegando';
@@ -530,13 +530,18 @@ async function motoristaChegou() {
 async function iniciarCorrida() {
   if (!currentRide) return;
   console.log('Iniciando corrida!');
+  
   const { error } = await supabase
     .from('corridas')
-    .update({ status: 'emCurso', iniciado_em: new Date().toISOString() })
+    .update({ 
+      status: 'emCurso', 
+      iniciado_em: new Date().toISOString() 
+    })
     .eq('id', currentRide.id);
   
   if (error) {
-    showToast('Erro ao iniciar corrida', 'error');
+    showToast('Erro ao iniciar corrida: ' + error.message, 'error');
+    console.error('Erro detalhado:', error);
   } else {
     showToast('🚗 Corrida iniciada!', 'success');
     currentRide.status = 'emCurso';
@@ -559,7 +564,8 @@ async function finalizarCorrida() {
     .eq('id', currentRide.id);
   
   if (error) {
-    showToast('Erro ao finalizar corrida', 'error');
+    showToast('Erro ao finalizar corrida: ' + error.message, 'error');
+    console.error('Erro detalhado:', error);
   } else {
     showToast(`🏁 Corrida finalizada! R$ ${preco}`, 'success');
     showRideCompletedModal(preco, destino);
