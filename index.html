@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>GoMove - Transporte Inteligente</title>
+<title>GoMove - App de Transporte</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -54,10 +54,7 @@ body { font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; }
   border-radius: 16px;
   padding: 16px;
   margin-bottom: 12px;
-  animation: fadeIn 0.2s ease;
 }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
-
 .button-group { display: flex; gap: 10px; margin-top: 12px; }
 .button-group button { flex: 1; padding: 10px; border-radius: 12px; font-weight: 600; cursor: pointer; border: none; }
 .btn-accept { background: #10b981; color: white; }
@@ -103,7 +100,6 @@ body { font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; }
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: fadeIn 0.3s ease;
 }
 .modal-finalizacao-content {
   background: white;
@@ -160,8 +156,6 @@ let driverMarker = null;
 let routePolyline = null;
 let driverInterval = null;
 let pollingInterval = null;
-let lastRideData = null;
-let lastSolicitacoesData = null;
 
 const userId = localStorage.getItem('gomove_user_id') || crypto.randomUUID();
 localStorage.setItem('gomove_user_id', userId);
@@ -205,7 +199,6 @@ function showRideCompletedModal(valor, destino) {
       <h2>🏁 Corrida Finalizada!</h2>
       <p>Destino: ${destino}</p>
       <p style="font-size: 28px; font-weight: bold; color: #10b981;">R$ ${valor}</p>
-      <p>Agradecemos por usar GoMove!</p>
       <button class="btn-primary" id="closeModalBtn" style="margin-top: 16px;">OK</button>
     </div>
   `;
@@ -245,16 +238,13 @@ async function tracarRota(origemLat, origemLng, destinoLat, destinoLng) {
       routePolyline = L.geoJSON(data.routes[0].geometry, {
         style: { color: '#667eea', weight: 5, opacity: 0.8 }
       }).addTo(map);
-      map.fitBounds(routePolyline.getBounds());
     }
-  } catch (err) { console.error('Erro ao traçar rota:', err); }
+  } catch (err) { console.error('Erro:', err); }
 }
 
-// ========== RASTREAMENTO DO MOTORISTA (2 segundos - suficiente) ==========
+// ========== RASTREAMENTO DO MOTORISTA ==========
 function iniciarRastreamentoMotorista(motoristaId, passageiroLat, passageiroLng) {
   if (driverInterval) clearInterval(driverInterval);
-  
-  console.log('📍 Iniciando rastreamento do motorista (2s)...');
   
   const buscarLocalizacao = async () => {
     const { data: motorista } = await supabase
@@ -281,13 +271,144 @@ function iniciarRastreamentoMotorista(motoristaId, passageiroLat, passageiroLng)
   };
   
   buscarLocalizacao();
-  driverInterval = setInterval(buscarLocalizacao, 2000); // 2 segundos é suficiente
+  driverInterval = setInterval(buscarLocalizacao, 3000);
 }
 
-// ========== VERIFICAR SE HOUVE MUDANÇA REAL ==========
-function hasDataChanged(oldData, newData) {
-  if (!oldData || !newData) return true;
-  return JSON.stringify(oldData) !== JSON.stringify(newData);
+// ========== POLLING SIMPLES E EFICAZ ==========
+function iniciarPolling() {
+  if (pollingInterval) clearInterval(pollingInterval);
+  
+  pollingInterval = setInterval(async () => {
+    if (!currentUser) return;
+    
+    // Para PASSAGEIRO
+    if (currentUser.tipo === 'passageiro') {
+      const { data: corridaAtiva } = await supabase
+        .from('corridas')
+        .select('*')
+        .eq('passageiro_id', userId)
+        .in('status', ['solicitado', 'aceito', 'chegando', 'emCurso', 'finalizado'])
+        .order('criado_em', { ascending: false })
+        .limit(1);
+      
+      if (corridaAtiva && corridaAtiva.length > 0) {
+        const novaCorrida = corridaAtiva[0];
+        
+        // Verificar se mudou
+        if (!currentRide || currentRide.id !== novaCorrida.id || currentRide.status !== novaCorrida.status) {
+          console.log('Atualizando passageiro:', novaCorrida.status);
+          
+          // Corrida finalizada
+          if (novaCorrida.status === 'finalizado') {
+            showToast(`🏁 Corrida finalizada! R$ ${novaCorrida.preco}`, 'success');
+            showRideCompletedModal(novaCorrida.preco, novaCorrida.destino);
+            currentRide = null;
+            if (driverInterval) clearInterval(driverInterval);
+            if (driverMarker) map.removeLayer(driverMarker);
+            if (routePolyline) map.removeLayer(routePolyline);
+            renderScreen();
+            return;
+          }
+          
+          // Motorista aceitou
+          if (novaCorrida.status === 'aceito' && (!currentRide || currentRide.status !== 'aceito')) {
+            showToast(`✅ Motorista aceitou sua corrida!`, 'success');
+            if (novaCorrida.motorista_id && novaCorrida.origem_lat) {
+              iniciarRastreamentoMotorista(novaCorrida.motorista_id, novaCorrida.origem_lat, novaCorrida.origem_lng);
+            }
+          }
+          
+          // Motorista chegou
+          if (novaCorrida.status === 'chegando' && (!currentRide || currentRide.status !== 'chegando')) {
+            showToast(`📍 Motorista chegou ao local!`, 'success');
+          }
+          
+          // Corrida iniciada
+          if (novaCorrida.status === 'emCurso' && (!currentRide || currentRide.status !== 'emCurso')) {
+            showToast(`🚗 Corrida em andamento!`, 'success');
+          }
+          
+          currentRide = novaCorrida;
+          renderScreen();
+        }
+      } else if (currentRide) {
+        currentRide = null;
+        if (driverInterval) clearInterval(driverInterval);
+        if (driverMarker) map.removeLayer(driverMarker);
+        if (routePolyline) map.removeLayer(routePolyline);
+        renderScreen();
+      }
+    }
+    
+    // Para MOTORISTA
+    if (currentUser.tipo === 'motorista') {
+      // Verificar corrida ativa
+      const { data: corridaAtiva } = await supabase
+        .from('corridas')
+        .select('*')
+        .eq('motorista_id', userId)
+        .in('status', ['aceito', 'chegando', 'emCurso', 'finalizado'])
+        .maybeSingle();
+      
+      if (corridaAtiva) {
+        if (!currentRide || currentRide.id !== corridaAtiva.id || currentRide.status !== corridaAtiva.status) {
+          console.log('Atualizando motorista:', corridaAtiva.status);
+          
+          if (corridaAtiva.status === 'finalizado') {
+            showToast(`🏁 Corrida finalizada!`, 'success');
+            showRideCompletedModal(corridaAtiva.preco, corridaAtiva.destino);
+            currentRide = null;
+            if (routePolyline) map.removeLayer(routePolyline);
+            renderScreen();
+            return;
+          }
+          
+          currentRide = corridaAtiva;
+          renderScreen();
+        }
+      } else if (currentRide && currentRide.status !== 'finalizado') {
+        currentRide = null;
+        renderScreen();
+      }
+      
+      // Buscar solicitações (apenas se não estiver em corrida)
+      if (!currentRide) {
+        const { data: solicitacoes } = await supabase
+          .from('corridas')
+          .select('*')
+          .eq('status', 'solicitado')
+          .order('criado_em', { ascending: false });
+        
+        const listaDiv = document.getElementById('solicitacoesList');
+        if (listaDiv && solicitacoes) {
+          const newHtml = solicitacoes.map(ride => `
+            <div class="solicitacao-card">
+              <div><strong>${ride.tipo === 'economico' ? '🚗 Econômico' : ride.tipo === 'comfort' ? '🚙 Comfort' : '🖤 Black'}</strong> - R$ ${ride.preco}</div>
+              <div>📍 Destino: ${ride.destino}</div>
+              <div class="button-group">
+                <button class="btn-accept" data-id="${ride.id}">✅ Aceitar</button>
+                <button class="btn-reject" data-id="${ride.id}">❌ Recusar</button>
+              </div>
+            </div>
+          `).join('');
+          
+          listaDiv.innerHTML = newHtml;
+          document.querySelectorAll('.btn-accept').forEach(btn => {
+            btn.addEventListener('click', async () => {
+              const ride = solicitacoes.find(r => r.id === btn.dataset.id);
+              if (ride) await aceitarCorrida(ride);
+            });
+          });
+          document.querySelectorAll('.btn-reject').forEach(btn => {
+            btn.addEventListener('click', async () => {
+              const ride = solicitacoes.find(r => r.id === btn.dataset.id);
+              if (ride) await recusarCorrida(ride);
+            });
+          });
+        }
+      }
+    }
+  }, 2000);
 }
 
 // ========== FUNÇÕES PRINCIPAIS ==========
@@ -332,15 +453,12 @@ async function solicitarCorrida(destino, tipo) {
   }
   
   currentRide = novaCorrida;
-  lastRideData = novaCorrida;
   showToast(`✅ Corrida solicitada! R$ ${preco}`, 'success');
   renderScreen();
 }
 
 async function aceitarCorrida(ride) {
   if (!currentUser || currentUser.tipo !== 'motorista') return;
-  
-  console.log('🚗 Aceitando corrida:', ride.id);
   
   const { error } = await supabase
     .from('corridas')
@@ -357,8 +475,7 @@ async function aceitarCorrida(ride) {
     showToast('Erro ao aceitar corrida', 'error');
   } else {
     currentRide = { ...ride, status: 'aceito', motorista_id: userId };
-    lastRideData = currentRide;
-    showToast(`✅ Corrida aceita!`, 'success');
+    showToast(`✅ Corrida aceita! Vá buscar o passageiro.`, 'success');
     renderScreen();
   }
 }
@@ -387,7 +504,6 @@ async function cancelarCorrida(tipo) {
   
   showToast(`✅ Corrida cancelada`, 'info');
   currentRide = null;
-  lastRideData = null;
   if (driverInterval) clearInterval(driverInterval);
   if (driverMarker) map.removeLayer(driverMarker);
   if (routePolyline) map.removeLayer(routePolyline);
@@ -396,20 +512,41 @@ async function cancelarCorrida(tipo) {
 
 async function motoristaChegou() {
   if (!currentRide) return;
-  await supabase.from('corridas').update({ status: 'chegando', chegando_em: new Date().toISOString() }).eq('id', currentRide.id);
-  showToast('✅ Você chegou ao local!', 'success');
+  console.log('Motorista chegou no local!');
+  const { error } = await supabase
+    .from('corridas')
+    .update({ status: 'chegando', chegando_em: new Date().toISOString() })
+    .eq('id', currentRide.id);
+  
+  if (error) {
+    showToast('Erro ao atualizar status', 'error');
+  } else {
+    showToast('✅ Você chegou ao local!', 'success');
+    currentRide.status = 'chegando';
+    renderScreen();
+  }
 }
 
 async function iniciarCorrida() {
   if (!currentRide) return;
-  await supabase.from('corridas').update({ status: 'emCurso', iniciado_em: new Date().toISOString() }).eq('id', currentRide.id);
-  showToast('🚗 Corrida iniciada!', 'success');
+  console.log('Iniciando corrida!');
+  const { error } = await supabase
+    .from('corridas')
+    .update({ status: 'emCurso', iniciado_em: new Date().toISOString() })
+    .eq('id', currentRide.id);
+  
+  if (error) {
+    showToast('Erro ao iniciar corrida', 'error');
+  } else {
+    showToast('🚗 Corrida iniciada!', 'success');
+    currentRide.status = 'emCurso';
+    renderScreen();
+  }
 }
 
 async function finalizarCorrida() {
   if (!currentRide) return;
-  
-  console.log('🏁 Finalizando corrida:', currentRide.id);
+  console.log('Finalizando corrida!');
   const preco = currentRide.preco;
   const destino = currentRide.destino;
   
@@ -426,9 +563,7 @@ async function finalizarCorrida() {
   } else {
     showToast(`🏁 Corrida finalizada! R$ ${preco}`, 'success');
     showRideCompletedModal(preco, destino);
-    
     currentRide = null;
-    lastRideData = null;
     if (driverInterval) clearInterval(driverInterval);
     if (driverMarker) map.removeLayer(driverMarker);
     if (routePolyline) map.removeLayer(routePolyline);
@@ -476,136 +611,6 @@ function iniciarGPS() {
   );
 }
 
-// ========== POLLING INTELIGENTE (1 segundo - apenas quando necessário) ==========
-function iniciarPollingInteligente() {
-  if (pollingInterval) clearInterval(pollingInterval);
-  
-  pollingInterval = setInterval(async () => {
-    if (!currentUser) return;
-    
-    if (currentUser.tipo === 'passageiro') {
-      // Buscar apenas se houver corrida ativa ou se estava em corrida
-      const { data: corridaAtiva } = await supabase
-        .from('corridas')
-        .select('*')
-        .eq('passageiro_id', userId)
-        .in('status', ['solicitado', 'aceito', 'chegando', 'emCurso', 'finalizado'])
-        .order('criado_em', { ascending: false })
-        .limit(1);
-      
-      if (corridaAtiva && corridaAtiva.length > 0) {
-        const novaCorrida = corridaAtiva[0];
-        
-        // Verificar se houve mudança real
-        if (hasDataChanged(lastRideData, novaCorrida)) {
-          console.log('📢 Mudança detectada no passageiro:', novaCorrida.status);
-          lastRideData = novaCorrida;
-          
-          if (novaCorrida.status === 'finalizado') {
-            showToast(`🏁 Corrida finalizada! R$ ${novaCorrida.preco}`, 'success');
-            showRideCompletedModal(novaCorrida.preco, novaCorrida.destino);
-            currentRide = null;
-            lastRideData = null;
-            if (driverInterval) clearInterval(driverInterval);
-            if (driverMarker) map.removeLayer(driverMarker);
-            if (routePolyline) map.removeLayer(routePolyline);
-            renderScreen();
-          } else {
-            const oldStatus = currentRide?.status;
-            currentRide = novaCorrida;
-            
-            if (novaCorrida.status === 'aceito' && oldStatus !== 'aceito') {
-              showToast(`✅ Motorista aceitou sua corrida!`, 'success');
-              if (novaCorrida.motorista_id && novaCorrida.origem_lat) {
-                iniciarRastreamentoMotorista(novaCorrida.motorista_id, novaCorrida.origem_lat, novaCorrida.origem_lng);
-              }
-            }
-            
-            if (novaCorrida.status === 'chegando' && oldStatus !== 'chegando') {
-              showToast(`📍 Motorista chegou ao local!`, 'success');
-            }
-            
-            if (novaCorrida.status === 'emCurso' && oldStatus !== 'emCurso') {
-              showToast(`🚗 Corrida em andamento!`, 'success');
-            }
-            
-            renderScreen();
-          }
-        }
-      }
-    }
-    
-    if (currentUser.tipo === 'motorista') {
-      // Buscar corrida ativa do motorista
-      const { data: corridaAtiva } = await supabase
-        .from('corridas')
-        .select('*')
-        .eq('motorista_id', userId)
-        .in('status', ['aceito', 'chegando', 'emCurso', 'finalizado'])
-        .maybeSingle();
-      
-      if (corridaAtiva && hasDataChanged(lastRideData, corridaAtiva)) {
-        console.log('📢 Mudança detectada no motorista:', corridaAtiva.status);
-        lastRideData = corridaAtiva;
-        
-        if (corridaAtiva.status === 'finalizado') {
-          showToast(`🏁 Corrida finalizada!`, 'success');
-          showRideCompletedModal(corridaAtiva.preco, corridaAtiva.destino);
-          currentRide = null;
-          lastRideData = null;
-          if (driverMarker) map.removeLayer(driverMarker);
-          if (routePolyline) map.removeLayer(routePolyline);
-          renderScreen();
-        } else {
-          currentRide = corridaAtiva;
-          renderScreen();
-        }
-      }
-      
-      // Buscar solicitações apenas se não estiver em corrida
-      if (!currentRide || !['aceito', 'chegando', 'emCurso'].includes(currentRide.status)) {
-        const { data: solicitacoes } = await supabase
-          .from('corridas')
-          .select('*')
-          .eq('status', 'solicitado')
-          .order('criado_em', { ascending: false });
-        
-        if (hasDataChanged(lastSolicitacoesData, solicitacoes)) {
-          lastSolicitacoesData = solicitacoes;
-          
-          const listaDiv = document.getElementById('solicitacoesList');
-          if (listaDiv && solicitacoes) {
-            const newHtml = solicitacoes.map(ride => `
-              <div class="solicitacao-card">
-                <div><strong>${ride.tipo === 'economico' ? '🚗 Econômico' : ride.tipo === 'comfort' ? '🚙 Comfort' : '🖤 Black'}</strong> - R$ ${ride.preco}</div>
-                <div>📍 Destino: ${ride.destino}</div>
-                <div class="button-group">
-                  <button class="btn-accept" data-id="${ride.id}">✅ Aceitar</button>
-                  <button class="btn-reject" data-id="${ride.id}">❌ Recusar</button>
-                </div>
-              </div>
-            `).join('');
-            
-            listaDiv.innerHTML = newHtml;
-            document.querySelectorAll('.btn-accept').forEach(btn => {
-              btn.addEventListener('click', async () => {
-                const ride = solicitacoes.find(r => r.id === btn.dataset.id);
-                if (ride) await aceitarCorrida(ride);
-              });
-            });
-            document.querySelectorAll('.btn-reject').forEach(btn => {
-              btn.addEventListener('click', async () => {
-                const ride = solicitacoes.find(r => r.id === btn.dataset.id);
-                if (ride) await recusarCorrida(ride);
-              });
-            });
-          }
-        }
-      }
-    }
-  }, 1000); // 1 segundo é mais que suficiente e evita bugs
-}
-
 // ========== RENDERIZAÇÃO ==========
 async function renderScreen() {
   const content = document.getElementById('sheetContent');
@@ -625,7 +630,7 @@ async function renderScreen() {
       currentUser = { tipo: 'motorista', id: userId, nome: nome || 'Motorista', carro: carro || 'Sedan' };
       await supabase.from('usuarios').upsert({ id: userId, tipo: 'motorista', online: true, nome: currentUser.nome, carro: currentUser.carro });
       iniciarGPS();
-      iniciarPollingInteligente();
+      iniciarPolling();
       renderScreen();
       showToast('Você está online como motorista!', 'success');
     });
@@ -635,7 +640,7 @@ async function renderScreen() {
       currentUser = { tipo: 'passageiro', id: userId, nome: nome || 'Passageiro' };
       await supabase.from('usuarios').upsert({ id: userId, tipo: 'passageiro', online: true, nome: currentUser.nome });
       iniciarGPS();
-      iniciarPollingInteligente();
+      iniciarPolling();
       renderScreen();
       showToast('Você está online como passageiro!', 'success');
     });
@@ -677,6 +682,7 @@ async function renderScreen() {
           </div>
         </div>
       `;
+      
       document.getElementById('chegandoBtn')?.addEventListener('click', motoristaChegou);
       document.getElementById('iniciarCorridaBtn')?.addEventListener('click', iniciarCorrida);
       document.getElementById('finalizarCorridaBtn')?.addEventListener('click', finalizarCorrida);
@@ -700,9 +706,9 @@ async function renderScreen() {
       <div class="card">
         <div style="text-align: center; margin-bottom: 16px;">
           <i class="fas fa-car" style="font-size: 48px; color: #667eea;"></i>
-          <h3>Solicitações de Corrida</h3>
+          <h3>Solicitações</h3>
         </div>
-        <div id="solicitacoesList"></div>
+        <div id="solicitacoesList"><div style="text-align: center; padding: 20px;">Carregando...</div></div>
         <button class="btn-secondary" id="offlineBtn">Sair</button>
       </div>
     `;
@@ -760,6 +766,7 @@ async function renderScreen() {
           </div>
         </div>
       `;
+      
       document.getElementById('cancelarBtn')?.addEventListener('click', () => cancelarCorrida('passageiro'));
       document.getElementById('logoutBtn')?.addEventListener('click', async () => {
         if (watchId) navigator.geolocation.clearWatch(watchId);
