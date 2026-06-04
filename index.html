@@ -165,7 +165,11 @@ let driverMarker = null;
 let routePolyline = null;
 let driverInterval = null;
 let pollingInterval = null;
-let modalShownForRide = null; // Controla qual corrida já mostrou o modal
+
+// Controle para evitar notificações duplicadas
+let modalShownForRide = null;
+let modalActive = false;
+let toastShownForRide = null;
 
 const userId = localStorage.getItem('gomove_user_id') || crypto.randomUUID();
 localStorage.setItem('gomove_user_id', userId);
@@ -191,7 +195,17 @@ const passengerIcon = L.divIcon({
   iconSize: [40, 40]
 });
 
-function showToast(msg, type = 'info') {
+// ========== TOAST COM CONTROLE DE REPETIÇÃO ==========
+function showToast(msg, type = 'info', rideId = null) {
+  // Se for um toast de finalização de corrida, verificar se já foi mostrado
+  if (msg.includes('Corrida finalizada') && rideId) {
+    if (toastShownForRide === rideId) {
+      console.log('Toast já foi mostrado para esta corrida:', rideId);
+      return;
+    }
+    toastShownForRide = rideId;
+  }
+  
   const toast = document.createElement('div');
   toast.className = 'toast';
   toast.innerHTML = msg;
@@ -200,17 +214,13 @@ function showToast(msg, type = 'info') {
   setTimeout(() => toast.remove(), 3000);
 }
 
-// ========== MODAL CORRIGIDO - Aparece apenas uma vez ==========
-let modalActive = false;
-
+// ========== MODAL COM CONTROLE DE REPETIÇÃO ==========
 function showRideCompletedModal(valor, destino, rideId) {
-  // Se já mostramos o modal para esta corrida, não mostrar novamente
   if (modalShownForRide === rideId) {
     console.log('Modal já foi mostrado para esta corrida:', rideId);
     return;
   }
   
-  // Se já tem um modal ativo, não criar outro
   if (modalActive) {
     console.log('Modal já está ativo');
     return;
@@ -234,13 +244,11 @@ function showRideCompletedModal(valor, destino, rideId) {
   `;
   document.body.appendChild(modal);
   
-  // Event listener para fechar o modal
   const closeBtn = document.getElementById('closeModalBtn');
   if (closeBtn) {
     closeBtn.addEventListener('click', () => {
       modal.remove();
       modalActive = false;
-      // Limpar marcadores após fechar o modal
       if (driverMarker) {
         map.removeLayer(driverMarker);
         driverMarker = null;
@@ -252,19 +260,10 @@ function showRideCompletedModal(valor, destino, rideId) {
     });
   }
   
-  // Fechar automaticamente após 5 segundos (fallback)
   setTimeout(() => {
     if (modal && modal.parentNode) {
       modal.remove();
       modalActive = false;
-      if (driverMarker) {
-        map.removeLayer(driverMarker);
-        driverMarker = null;
-      }
-      if (routePolyline) {
-        map.removeLayer(routePolyline);
-        routePolyline = null;
-      }
     }
   }, 5000);
 }
@@ -354,8 +353,8 @@ function iniciarPolling() {
           console.log('Atualizando passageiro:', novaCorrida.status);
           
           if (novaCorrida.status === 'finalizado') {
-            showToast(`🏁 Corrida finalizada! R$ ${novaCorrida.preco}`, 'success');
-            // Mostrar modal APENAS UMA VEZ, passando o ID da corrida
+            // Mostrar apenas uma vez o toast e o modal
+            showToast(`🏁 Corrida finalizada! R$ ${novaCorrida.preco}`, 'success', novaCorrida.id);
             showRideCompletedModal(novaCorrida.preco, novaCorrida.destino, novaCorrida.id);
             currentRide = null;
             if (driverInterval) clearInterval(driverInterval);
@@ -406,7 +405,7 @@ function iniciarPolling() {
           console.log('Atualizando motorista:', corridaAtiva.status);
           
           if (corridaAtiva.status === 'finalizado') {
-            showToast(`🏁 Corrida finalizada!`, 'success');
+            showToast(`🏁 Corrida finalizada!`, 'success', corridaAtiva.id);
             showRideCompletedModal(corridaAtiva.preco, corridaAtiva.destino, corridaAtiva.id);
             currentRide = null;
             if (routePolyline) map.removeLayer(routePolyline);
@@ -627,7 +626,7 @@ async function finalizarCorrida() {
     console.error('ERRO DETALHADO:', error);
     showToast('Erro ao finalizar corrida: ' + error.message, 'error');
   } else {
-    showToast(`🏁 Corrida finalizada! R$ ${preco}`, 'success');
+    showToast(`🏁 Corrida finalizada! R$ ${preco}`, 'success', rideId);
     showRideCompletedModal(preco, destino, rideId);
     currentRide = null;
     if (driverInterval) clearInterval(driverInterval);
