@@ -2,28 +2,205 @@
 <html lang="pt-BR">
 
 <head>
-
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 
-<title>Mapa dos Motoristas</title>
+<title>Rastreamento GPS</title>
 
 <link rel="stylesheet"
 href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
-<link rel="stylesheet"
-href="css/style.css">
+<style>
+
+html,body{
+margin:0;
+padding:0;
+height:100%;
+font-family:Arial;
+}
+
+#map{
+width:100%;
+height:100vh;
+}
+
+#painel{
+position:absolute;
+top:10px;
+left:10px;
+z-index:1000;
+background:white;
+padding:10px;
+border-radius:10px;
+box-shadow:0 0 10px rgba(0,0,0,.3);
+max-width:300px;
+}
+
+button{
+padding:10px;
+margin-top:5px;
+width:100%;
+}
+
+</style>
 
 </head>
 
 <body>
 
+<div id="painel">
+
+<h3>Rastreamento</h3>
+
+<div id="status">
+Aguardando GPS...
+</div>
+
+<button id="iniciar">
+Iniciar Rastreamento
+</button>
+
+</div>
+
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-<script type="module"
-src="js/mapa.js"></script>
+<script type="module">
+
+import { createClient }
+from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
+const supabase = createClient(
+'https://fqbxhkcdefwsuefifygk.supabase.co',
+'SUA_CHAVE_PUBLICAVEL'
+);
+
+/*
+COLE O ID DO MOTORISTA
+QUE VOCÊ CRIOU NO SUPABASE
+*/
+const MOTORISTA_ID =
+'COLE_O_ID_AQUI';
+
+const status =
+document.getElementById('status');
+
+const map =
+L.map('map')
+.setView([-14.235,-51.925],4);
+
+L.tileLayer(
+'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+{
+maxZoom:19
+}
+).addTo(map);
+
+const marcadores = {};
+
+async function atualizarMotoristas(){
+
+const { data,error } =
+await supabase
+.from('motoristas')
+.select('*');
+
+if(error){
+console.log(error);
+return;
+}
+
+data.forEach(m=>{
+
+const pos = [
+m.latitude,
+m.longitude
+];
+
+if(marcadores[m.id]){
+
+marcadores[m.id]
+.setLatLng(pos);
+
+}else{
+
+marcadores[m.id] =
+L.marker(pos)
+.addTo(map)
+.bindPopup(m.nome);
+
+}
+
+});
+
+}
+
+async function enviarLocalizacao(lat,lng){
+
+await supabase
+.from('motoristas')
+.update({
+latitude:lat,
+longitude:lng,
+atualizado_em:new Date()
+})
+.eq('id',MOTORISTA_ID);
+
+}
+
+document
+.getElementById('iniciar')
+.onclick = ()=>{
+
+navigator.geolocation.watchPosition(
+
+async(pos)=>{
+
+const lat =
+pos.coords.latitude;
+
+const lng =
+pos.coords.longitude;
+
+status.innerHTML =
+`
+Latitude: ${lat}<br>
+Longitude: ${lng}
+`;
+
+await enviarLocalizacao(
+lat,
+lng
+);
+
+},
+
+(err)=>{
+
+status.innerHTML =
+err.message;
+
+},
+
+{
+enableHighAccuracy:true,
+maximumAge:0,
+timeout:10000
+}
+
+);
+
+};
+
+setInterval(
+atualizarMotoristas,
+5000
+);
+
+atualizarMotoristas();
+
+</script>
 
 </body>
-
 </html>
