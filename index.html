@@ -2,11 +2,12 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>99 Clone - Corridas em Tempo Real</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>GoMove - App de Transporte</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
 <style>
 * {
@@ -16,7 +17,7 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   height: 100vh;
   overflow: hidden;
   background: #000;
@@ -28,221 +29,380 @@ body {
   z-index: 1;
 }
 
-/* Painel estilo 99 */
-.painel-99 {
+/* Bottom Sheet Estilo Uber/99 */
+.bottom-sheet {
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
-  z-index: 1000;
   background: white;
-  border-radius: 24px 24px 0 0;
-  padding: 20px;
+  border-radius: 28px 28px 0 0;
+  z-index: 1000;
+  transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1);
   box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
-  transition: transform 0.3s ease;
+  max-height: 85vh;
+  overflow-y: auto;
 }
 
-.painel-99.minimizado {
-  transform: translateY(calc(100% - 70px));
+.bottom-sheet.collapsed {
+  transform: translateY(calc(100% - 80px));
 }
 
-.painel-header {
+.sheet-handle {
+  width: 40px;
+  height: 4px;
+  background: #cbd5e1;
+  border-radius: 2px;
+  margin: 12px auto;
+  cursor: pointer;
+}
+
+.sheet-content {
+  padding: 0 20px 20px 20px;
+}
+
+/* Header */
+.header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 15px;
-  cursor: pointer;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f1f5f9;
 }
 
-.painel-header h3 {
-  font-size: 1.2rem;
-  color: #1f2937;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.logo {
+  font-size: 1.5rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
-.toggle-btn {
-  background: none;
-  border: none;
-  font-size: 1.2rem;
-  cursor: pointer;
-  color: #6b7280;
-  padding: 5px;
+.user-badge {
+  background: #f1f5f9;
+  padding: 8px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #475569;
 }
 
-.status-card {
-  background: #f3f4f6;
-  border-radius: 16px;
-  padding: 15px;
-  margin-bottom: 15px;
+/* Cards */
+.card {
+  background: #f8fafc;
+  border-radius: 20px;
+  padding: 16px;
+  margin-bottom: 16px;
 }
 
-.status-online {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
-  padding: 8px;
-  background: #ecfdf5;
-  border-radius: 12px;
-  color: #059669;
-}
-
-.status-offline {
-  background: #fef2f2;
-  color: #dc2626;
-}
-
-.coords-info {
-  font-size: 0.85rem;
-  color: #4b5563;
-  font-family: monospace;
-  margin-top: 8px;
-}
-
-.btn-group-99 {
+.location-input {
   display: flex;
   gap: 12px;
-  margin-bottom: 15px;
+  margin-bottom: 16px;
 }
 
-.btn-99 {
+.location-icon {
+  width: 40px;
+  height: 40px;
+  background: #e2e8f0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #475569;
+}
+
+.location-fields {
   flex: 1;
-  padding: 14px;
+}
+
+.location-field {
+  margin-bottom: 12px;
+}
+
+.location-field label {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.location-field input {
+  width: 100%;
   border: none;
-  border-radius: 12px;
+  background: transparent;
+  font-size: 1rem;
+  padding: 4px 0;
+  outline: none;
+  font-family: 'Inter', sans-serif;
+}
+
+.location-field input:focus {
+  border-bottom: 2px solid #667eea;
+}
+
+/* Ride Options */
+.ride-options {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  overflow-x: auto;
+}
+
+.ride-option {
+  flex: 1;
+  background: white;
+  border: 2px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 100px;
+}
+
+.ride-option.selected {
+  border-color: #667eea;
+  background: linear-gradient(135deg, #667eea10 0%, #764ba210 100%);
+}
+
+.ride-icon {
+  font-size: 1.5rem;
+  margin-bottom: 6px;
+}
+
+.ride-name {
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin-bottom: 4px;
+}
+
+.ride-price {
+  font-size: 0.75rem;
+  color: #10b981;
+  font-weight: 600;
+}
+
+.ride-time {
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+
+/* Button */
+.btn-primary {
+  width: 100%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 16px;
+  border-radius: 16px;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
+  margin-bottom: 12px;
 }
 
-.btn-motorista {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-}
-
-.btn-passageiro {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  color: white;
-}
-
-.btn-encerrar {
-  background: #ef4444;
-  color: white;
-  width: 100%;
-  margin-top: 10px;
-}
-
-.btn-99:active {
+.btn-primary:active {
   transform: scale(0.98);
 }
 
-.vehicles-list {
-  max-height: 200px;
-  overflow-y: auto;
+.btn-secondary {
+  width: 100%;
+  background: white;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+  padding: 12px;
+  border-radius: 16px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
 }
 
-.vehicle-item {
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 12px;
-  margin-bottom: 8px;
+.btn-danger {
+  background: #ef4444;
+  color: white;
+}
+
+/* Trip Progress */
+.trip-progress {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.driver-info {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
+  margin-bottom: 20px;
 }
 
-.vehicle-icon {
-  font-size: 24px;
+.driver-avatar {
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  color: white;
 }
 
-.vehicle-info {
+.driver-details {
   flex: 1;
 }
 
-.vehicle-name {
-  font-weight: 600;
-  color: #1f2937;
+.driver-name {
+  font-weight: 700;
+  font-size: 1.1rem;
+  margin-bottom: 4px;
 }
 
-.vehicle-distance {
+.driver-rating {
+  color: #fbbf24;
+  font-size: 0.85rem;
+}
+
+.driver-car {
   font-size: 0.8rem;
-  color: #6b7280;
+  color: #64748b;
 }
 
-.distance-badge {
-  background: #10b981;
-  color: white;
-  padding: 4px 8px;
+.trip-stats {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.trip-stat {
+  flex: 1;
+  background: #f1f5f9;
+  padding: 12px;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.trip-stat-label {
+  font-size: 0.7rem;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.trip-stat-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+/* Status Badge */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
   border-radius: 20px;
   font-size: 0.75rem;
   font-weight: 600;
+  margin-bottom: 12px;
 }
 
-/* Toast notifications */
+.status-badge.searching {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.status-badge.aceito {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.status-badge.chegando {
+  background: #fed7aa;
+  color: #c2410c;
+}
+
+.status-badge.emcurso {
+  background: #d1fae5;
+  color: #059669;
+}
+
+.status-badge.finalizado {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+
+/* Modal */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 24px;
+  padding: 24px;
+  max-width: 320px;
+  width: 100%;
+  text-align: center;
+}
+
+.modal-content h3 {
+  margin-bottom: 12px;
+}
+
+.modal-content input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  margin: 12px 0;
+  font-size: 0.9rem;
+}
+
+/* Toast */
 .toast {
   position: fixed;
-  top: 20px;
+  bottom: 100px;
   left: 20px;
   right: 20px;
-  background: #1f2937;
+  background: #1e293b;
   color: white;
-  padding: 12px 16px;
-  border-radius: 12px;
+  padding: 14px;
+  border-radius: 16px;
   font-size: 0.85rem;
   text-align: center;
   z-index: 2000;
-  animation: slideDown 0.3s ease;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  animation: slideUp 0.3s ease;
 }
 
-.toast.success {
-  background: #10b981;
-}
-
-.toast.error {
-  background: #ef4444;
-}
-
-@keyframes slideDown {
-  from {
-    transform: translateY(-100px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-/* Loading */
-.loading {
-  text-align: center;
-  padding: 20px;
-  color: #6b7280;
+@keyframes slideUp {
+  from { transform: translateY(100px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
 
 /* Responsive */
 @media (min-width: 768px) {
-  .painel-99 {
+  .bottom-sheet {
+    left: auto;
+    right: 20px;
     bottom: 20px;
-    left: 20px;
-    right: auto;
-    width: 380px;
-    border-radius: 24px;
+    width: 400px;
+    border-radius: 28px;
   }
   
-  .painel-99.minimizado {
-    transform: translateY(calc(100% - 70px));
+  .bottom-sheet.collapsed {
+    transform: translateY(calc(100% - 80px));
   }
 }
 </style>
@@ -251,73 +411,50 @@ body {
 
 <div id="map"></div>
 
-<div class="painel-99" id="painel">
-  <div class="painel-header" id="togglePanel">
-    <h3>
-      <i class="fas fa-car"></i>
-      <span id="panelTitle">99 App</span>
-    </h3>
-    <button class="toggle-btn" id="toggleBtn">
-      <i class="fas fa-chevron-down"></i>
-    </button>
-  </div>
-  
-  <div id="panelContent">
-    <div class="status-card" id="statusCard">
-      <div id="statusIcon" class="status-offline" style="padding: 8px; border-radius: 12px; text-align: center;">
-        <i class="fas fa-circle"></i> Offline
-      </div>
-      <div id="coordsDisplay" class="coords-info" style="display: none;"></div>
-    </div>
-    
-    <div class="btn-group-99">
-      <button class="btn-99 btn-motorista" id="btnMotorista">
-        <i class="fas fa-taxi"></i> Sou Motorista
-      </button>
-      <button class="btn-99 btn-passageiro" id="btnPassageiro">
-        <i class="fas fa-walking"></i> Sou Passageiro
-      </button>
-    </div>
-    
-    <button class="btn-99 btn-encerrar" id="btnEncerrar">
-      <i class="fas fa-power-off"></i> Encerrar Corrida
-    </button>
-    
-    <div id="vehiclesContainer" style="margin-top: 15px;"></div>
+<div class="bottom-sheet collapsed" id="bottomSheet">
+  <div class="sheet-handle" id="sheetHandle"></div>
+  <div class="sheet-content" id="sheetContent">
+    <!-- Conteúdo dinâmico via JS -->
   </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/@mapbox/polyline@1.1.1/src/polyline.js"></script>
 
 <script type="module">
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
-// Supabase config
+// Configuração Supabase
 const supabase = createClient(
   'https://fqbxhkcdefwsuefifygk.supabase.co',
   'sb_publishable_jC8Ntyx8QD2FHkP8Bqa63A_sLljd1Fj'
 );
 
-// Variáveis globais
-let tipoUsuario = null;
+// ========== CONFIGURAÇÕES GLOBAIS ==========
+let currentUser = null;
+let currentRide = null;
 let watchId = null;
 let updateInterval = null;
-let meuID = localStorage.getItem("usuario_id_99");
-
-if (!meuID) {
-  meuID = crypto.randomUUID();
-  localStorage.setItem("usuario_id_99", meuID);
-}
-
-let minhaPosicao = null;
 let map = null;
-let markerMotorista = null;
-let marcadoresVeiculos = {};
-let polylineRota = null;
+let userMarker = null;
+let driverMarker = null;
+let routePolyline = null;
+let driverRouteInterval = null;
 
-// Inicializar mapa
+// Preços base por tipo
+const RIDE_TYPES = {
+  econômico: { name: 'Econômico', icon: '🚗', multiplier: 1, time: '2-4 min', basePrice: 5 },
+  comfort: { name: 'Comfort', icon: '🚙', multiplier: 1.5, time: '3-5 min', basePrice: 7.5 },
+  black: { name: 'Black', icon: '🖤', multiplier: 2, time: '5-7 min', basePrice: 10 }
+};
+
+// IDs do sistema
+const userId = localStorage.getItem('gomove_user_id') || crypto.randomUUID();
+localStorage.setItem('gomove_user_id', userId);
+
+// ========== INICIALIZAÇÃO DO MAPA ==========
 function initMap() {
-  map = L.map("map").setView([-23.5505, -46.6333], 14);
+  map = L.map('map').setView([-23.5505, -46.6333], 14);
   
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
@@ -328,35 +465,32 @@ function initMap() {
 initMap();
 
 // Ícones personalizados
-const iconeCarro = L.divIcon({
-  html: '<div style="background: #667eea; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.2); border: 2px solid white;"><i class="fas fa-car" style="color: white; font-size: 20px;"></i></div>',
+const driverIcon = L.divIcon({
+  html: '<div style="background: #667eea; width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.2); border: 3px solid white;"><i class="fas fa-car" style="color: white; font-size: 22px;"></i></div>',
+  iconSize: [45, 45],
+  className: 'driver-marker'
+});
+
+const passengerIcon = L.divIcon({
+  html: '<div style="background: #10b981; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.2); border: 3px solid white;"><i class="fas fa-user" style="color: white; font-size: 18px;"></i></div>',
   iconSize: [40, 40],
-  className: 'custom-div-icon'
+  className: 'passenger-marker'
 });
 
-const iconePassageiroLocal = L.divIcon({
-  html: '<div style="background: #10b981; width: 35px; height: 35px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.2); border: 2px solid white;"><i class="fas fa-user" style="color: white; font-size: 18px;"></i></div>',
-  iconSize: [35, 35],
-  className: 'custom-div-icon'
-});
-
-const iconeVeiculoOutro = L.divIcon({
-  html: '<div style="background: #f59e0b; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.2); border: 2px solid white;"><i class="fas fa-car" style="color: white; font-size: 20px;"></i></div>',
-  iconSize: [40, 40],
-  className: 'custom-div-icon'
-});
-
-// Funções auxiliares
+// ========== FUNÇÕES AUXILIARES ==========
 function showToast(message, type = 'info') {
-  const toast = document.createElement('div');
-  toast.className = `toast ${type}`;
-  toast.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i> ${message}`;
-  document.body.appendChild(toast);
+  const existingToast = document.querySelector('.toast');
+  if (existingToast) existingToast.remove();
   
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i> ${message}`;
+  toast.style.background = type === 'error' ? '#ef4444' : type === 'success' ? '#10b981' : '#1e293b';
+  document.body.appendChild(toast);
   setTimeout(() => toast.remove(), 3000);
 }
 
-function formatDistance(lat1, lon1, lat2, lon2) {
+function calcularDistancia(lat1, lon1, lat2, lon2) {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
@@ -364,324 +498,542 @@ function formatDistance(lat1, lon1, lat2, lon2) {
             Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
             Math.sin(dLon/2) * Math.sin(dLon/2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  const d = R * c;
-  
-  if (d < 1) return `${Math.round(d * 1000)}m`;
-  return `${d.toFixed(1)}km`;
+  return R * c;
 }
 
-// Atualizar UI baseado no tipo
-function updateUI() {
-  const panelTitle = document.getElementById('panelTitle');
-  const statusIcon = document.getElementById('statusIcon');
-  const coordsDisplay = document.getElementById('coordsDisplay');
-  
-  if (tipoUsuario === 'motorista') {
-    panelTitle.innerHTML = '<i class="fas fa-taxi"></i> Motorista - Online';
-    statusIcon.innerHTML = '<i class="fas fa-circle" style="color: #10b981;"></i> Motorista Online - Aguardando corridas';
-    statusIcon.className = 'status-online';
-    coordsDisplay.style.display = 'block';
-  } else if (tipoUsuario === 'passageiro') {
-    panelTitle.innerHTML = '<i class="fas fa-walking"></i> Passageiro - Procurando carros';
-    statusIcon.innerHTML = '<i class="fas fa-circle" style="color: #10b981;"></i> Passageiro Online - Carros próximos aparecerão no mapa';
-    statusIcon.className = 'status-online';
-    coordsDisplay.style.display = 'block';
-  } else {
-    panelTitle.innerHTML = '<i class="fas fa-car"></i> 99 App';
-    statusIcon.innerHTML = '<i class="fas fa-circle"></i> Offline - Escolha uma opção';
-    statusIcon.className = 'status-offline';
-    coordsDisplay.style.display = 'none';
-  }
+function calcularPreco(distanciaKm, tipo) {
+  const ride = RIDE_TYPES[tipo];
+  const precoBase = ride.basePrice;
+  const precoPorKm = 2 * ride.multiplier;
+  const total = precoBase + (distanciaKm * precoPorKm);
+  return total.toFixed(2);
 }
 
-// Iniciar GPS
-function iniciarGPS() {
-  if (!navigator.geolocation) {
-    showToast('Seu navegador não suporta GPS', 'error');
+// ========== RENDERIZAÇÃO DA INTERFACE ==========
+function renderHomeScreen() {
+  const content = document.getElementById('sheetContent');
+  content.innerHTML = `
+    <div class="header">
+      <div class="logo">GoMove</div>
+      <div class="user-badge">
+        <i class="fas fa-user"></i> ${currentUser?.tipo === 'motorista' ? 'Motorista' : 'Passageiro'}
+      </div>
+    </div>
+    
+    ${!currentUser ? `
+      <div class="card">
+        <button class="btn-primary" id="becomeDriverBtn">
+          <i class="fas fa-car"></i> Quero ser Motorista
+        </button>
+        <button class="btn-secondary" id="becomePassengerBtn">
+          <i class="fas fa-walking"></i> Quero ser Passageiro
+        </button>
+      </div>
+    ` : currentUser.tipo === 'passageiro' ? `
+      <div class="card">
+        <div class="location-input">
+          <div class="location-icon"><i class="fas fa-circle-dot"></i></div>
+          <div class="location-fields">
+            <div class="location-field">
+              <label>ORIGEM</label>
+              <input type="text" id="origemInput" placeholder="Sua localização atual" value="Minha localização">
+            </div>
+            <div class="location-field">
+              <label>DESTINO</label>
+              <input type="text" id="destinoInput" placeholder="Para onde você vai?">
+            </div>
+          </div>
+        </div>
+        
+        <div class="ride-options" id="rideOptions">
+          ${Object.entries(RIDE_TYPES).map(([key, ride]) => `
+            <div class="ride-option" data-ride-type="${key}">
+              <div class="ride-icon">${ride.icon}</div>
+              <div class="ride-name">${ride.name}</div>
+              <div class="ride-price">a partir de R$ ${ride.basePrice}</div>
+              <div class="ride-time">${ride.time}</div>
+            </div>
+          `).join('')}
+        </div>
+        
+        <button class="btn-primary" id="solicitarCorridaBtn" disabled>
+          <i class="fas fa-search"></i> Solicitar Corrida
+        </button>
+      </div>
+      
+      ${currentRide ? renderActiveRide() : ''}
+    ` : currentUser.tipo === 'motorista' && !currentRide ? `
+      <div class="card">
+        <div style="text-align: center; padding: 20px;">
+          <i class="fas fa-car" style="font-size: 48px; color: #667eea; margin-bottom: 12px;"></i>
+          <h3>Você está Online</h3>
+          <p style="color: #64748b; margin-top: 8px;">Aguardando solicitações de corrida...</p>
+          <div style="margin-top: 16px;">
+            <div class="trip-stat">
+              <div class="trip-stat-label">Motoristas próximos</div>
+              <div class="trip-stat-value" id="driverCount">--</div>
+            </div>
+          </div>
+        </div>
+        <button class="btn-primary btn-danger" id="goOfflineBtn">
+          <i class="fas fa-power-off"></i> Ficar Offline
+        </button>
+      </div>
+    ` : currentUser.tipo === 'motorista' && currentRide ? renderDriverRideScreen() : ''}
+  `;
+  
+  attachEventListeners();
+}
+
+function renderActiveRide() {
+  if (!currentRide) return '';
+  
+  const statusMessages = {
+    solicitado: '🟡 Procurando motorista...',
+    aceito: '✅ Motorista a caminho!',
+    chegando: '🚗 Motorista está chegando!',
+    emCurso: '🟢 Em corrida',
+    finalizado: '🏁 Corrida finalizada'
+  };
+  
+  return `
+    <div class="card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+      <div class="status-badge ${currentRide.status}">
+        <i class="fas ${currentRide.status === 'aceito' ? 'fa-car' : currentRide.status === 'emCurso' ? 'fa-road' : 'fa-clock'}"></i>
+        ${statusMessages[currentRide.status] || 'Em andamento'}
+      </div>
+      
+      ${currentRide.driver ? `
+        <div class="driver-info">
+          <div class="driver-avatar">
+            <i class="fas fa-user"></i>
+          </div>
+          <div class="driver-details">
+            <div class="driver-name">${currentRide.driver.nome || 'Motorista'}</div>
+            <div class="driver-rating">★★★★☆ 4.8</div>
+            <div class="driver-car">${currentRide.driver.carro || 'Sedan Preto'}</div>
+          </div>
+          <div class="trip-stat-value" id="driverDistance">Calculando...</div>
+        </div>
+      ` : '<div style="text-align: center;">Procurando motorista...</div>'}
+      
+      <div class="trip-stats">
+        <div class="trip-stat">
+          <div class="trip-stat-label">Distância</div>
+          <div class="trip-stat-value" id="tripDistance">-- km</div>
+        </div>
+        <div class="trip-stat">
+          <div class="trip-stat-label">Preço</div>
+          <div class="trip-stat-value">R$ ${currentRide.preco || '--'}</div>
+        </div>
+        <div class="trip-stat">
+          <div class="trip-stat-label">Tempo</div>
+          <div class="trip-stat-value" id="tripTime">-- min</div>
+        </div>
+      </div>
+      
+      ${currentRide.status === 'solicitado' ? `
+        <button class="btn-primary btn-danger" id="cancelarCorridaBtn">
+          <i class="fas fa-times"></i> Cancelar Corrida
+        </button>
+      ` : currentRide.status === 'finalizado' ? `
+        <button class="btn-primary" id="avaliarBtn">
+          <i class="fas fa-star"></i> Avaliar Motorista
+        </button>
+      ` : ''}
+    </div>
+  `;
+}
+
+function renderDriverRideScreen() {
+  return `
+    <div class="card">
+      <div class="status-badge ${currentRide.status}">
+        <i class="fas fa-bell"></i>
+        ${currentRide.status === 'aceito' ? 'Indo buscar passageiro' : 'Em corrida'}
+      </div>
+      
+      <div class="driver-info">
+        <div class="driver-avatar">
+          <i class="fas fa-user"></i>
+        </div>
+        <div class="driver-details">
+          <div class="driver-name">Passageiro</div>
+          <div class="driver-rating">Origem: ${currentRide.origem || '--'}</div>
+          <div class="driver-car">Destino: ${currentRide.destino || '--'}</div>
+        </div>
+      </div>
+      
+      <div class="trip-stats">
+        <div class="trip-stat">
+          <div class="trip-stat-label">Preço</div>
+          <div class="trip-stat-value">R$ ${currentRide.preco}</div>
+        </div>
+      </div>
+      
+      ${currentRide.status === 'aceito' ? `
+        <button class="btn-primary" id="chegandoBtn">
+          <i class="fas fa-flag-checkered"></i> Cheguei no local
+        </button>
+      ` : currentRide.status === 'chegando' ? `
+        <button class="btn-primary" id="iniciarCorridaBtn">
+          <i class="fas fa-play"></i> Iniciar Corrida
+        </button>
+      ` : currentRide.status === 'emCurso' ? `
+        <button class="btn-primary" id="finalizarCorridaBtn">
+          <i class="fas fa-flag-checkered"></i> Finalizar Corrida
+        </button>
+      ` : ''}
+    </div>
+  `;
+}
+
+// ========== LÓGICA DE CORRIDA ==========
+async function solicitarCorrida(origem, destino, tipo) {
+  if (!currentUser || currentUser.tipo !== 'passageiro') {
+    showToast('Você precisa estar como passageiro', 'error');
     return;
   }
   
-  showToast(`Iniciando como ${tipoUsuario === 'motorista' ? 'Motorista' : 'Passageiro'}...`, 'success');
+  if (!destino) {
+    showToast('Digite um destino', 'error');
+    return;
+  }
+  
+  // Calcular distância estimada
+  const distancia = 5; // Simulado
+  const preco = calcularPreco(distancia, tipo);
+  
+  const novaCorrida = {
+    id: crypto.randomUUID(),
+    passageiro_id: userId,
+    passageiro_nome: 'Passageiro',
+    origem: origem || 'Localização atual',
+    destino: destino,
+    tipo: tipo,
+    status: 'solicitado',
+    preco: preco,
+    distancia_km: distancia,
+    criado_em: new Date().toISOString()
+  };
+  
+  // Salvar no Supabase
+  const { error } = await supabase
+    .from('corridas')
+    .insert([novaCorrida]);
+  
+  if (error) {
+    console.error('Erro ao criar corrida:', error);
+    showToast('Erro ao solicitar corrida', 'error');
+    return;
+  }
+  
+  currentRide = novaCorrida;
+  showToast(`Corrida solicitada! Preço: R$ ${preco}`, 'success');
+  renderHomeScreen();
+  
+  // Buscar motorista automaticamente (simulado)
+  setTimeout(() => encontrarMotorista(novaCorrida.id), 3000);
+}
+
+async function encontrarMotorista(rideId) {
+  // Buscar motoristas online
+  const { data: motoristas } = await supabase
+    .from('usuarios')
+    .select('*')
+    .eq('tipo', 'motorista')
+    .eq('online', true);
+  
+  if (motoristas && motoristas.length > 0) {
+    const motorista = motoristas[0];
+    
+    const { error } = await supabase
+      .from('corridas')
+      .update({
+        status: 'aceito',
+        motorista_id: motorista.id,
+        motorista_nome: 'Motorista',
+        aceito_em: new Date().toISOString()
+      })
+      .eq('id', rideId);
+    
+    if (!error) {
+      currentRide.status = 'aceito';
+      currentRide.motorista_id = motorista.id;
+      currentRide.motorista_nome = 'Motorista';
+      showToast('Motorista encontrado! Ele está a caminho.', 'success');
+      renderHomeScreen();
+      iniciarRastreamentoMotorista(motorista);
+    }
+  }
+}
+
+async function cancelarCorrida() {
+  if (!currentRide) return;
+  
+  await supabase
+    .from('corridas')
+    .update({ status: 'cancelado' })
+    .eq('id', currentRide.id);
+  
+  currentRide = null;
+  showToast('Corrida cancelada', 'info');
+  renderHomeScreen();
+}
+
+async function motoristaChegou() {
+  if (!currentRide) return;
+  
+  await supabase
+    .from('corridas')
+    .update({ status: 'chegando' })
+    .eq('id', currentRide.id);
+  
+  currentRide.status = 'chegando';
+  showToast('Você chegou ao local do passageiro!', 'success');
+  renderHomeScreen();
+}
+
+async function iniciarCorrida() {
+  if (!currentRide) return;
+  
+  await supabase
+    .from('corridas')
+    .update({ status: 'emCurso', iniciado_em: new Date().toISOString() })
+    .eq('id', currentRide.id);
+  
+  currentRide.status = 'emCurso';
+  showToast('Corrida iniciada!', 'success');
+  renderHomeScreen();
+}
+
+async function finalizarCorrida() {
+  if (!currentRide) return;
+  
+  await supabase
+    .from('corridas')
+    .update({ 
+      status: 'finalizado',
+      finalizado_em: new Date().toISOString()
+    })
+    .eq('id', currentRide.id);
+  
+  currentRide.status = 'finalizado';
+  showToast(`Corrida finalizada! Valor: R$ ${currentRide.preco}`, 'success');
+  renderHomeScreen();
+  
+  setTimeout(() => {
+    currentRide = null;
+    renderHomeScreen();
+  }, 5000);
+}
+
+// ========== GPS E RASTREAMENTO ==========
+function iniciarGPS() {
+  if (!currentUser) return;
   
   if (watchId) navigator.geolocation.clearWatch(watchId);
   
   watchId = navigator.geolocation.watchPosition(
     async (pos) => {
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
-      minhaPosicao = { lat, lng };
+      const { latitude, longitude } = pos.coords;
       
-      // Atualizar display
-      document.getElementById('coordsDisplay').innerHTML = `
-        <i class="fas fa-map-marker-alt"></i> ${lat.toFixed(6)}°, ${lng.toFixed(6)}°
-      `;
+      // Atualizar no Supabase
+      await supabase
+        .from('usuarios')
+        .upsert({
+          id: userId,
+          tipo: currentUser.tipo,
+          latitude,
+          longitude,
+          online: true,
+          atualizado_em: new Date().toISOString()
+        });
       
-      // Centralizar mapa
-      map.setView([lat, lng], 15);
+      // Atualizar mapa
+      if (userMarker) map.removeLayer(userMarker);
+      userMarker = L.marker([latitude, longitude], { 
+        icon: currentUser.tipo === 'motorista' ? driverIcon : passengerIcon 
+      }).addTo(map).bindPopup(currentUser.tipo === 'motorista' ? '🚗 Você (Motorista)' : '👤 Você');
       
-      // Atualizar próprio marcador
-      if (markerMotorista) map.removeLayer(markerMotorista);
-      
-      const meuIcone = tipoUsuario === 'motorista' ? iconeCarro : iconePassageiroLocal;
-      markerMotorista = L.marker([lat, lng], { icon: meuIcone })
-        .addTo(map)
-        .bindPopup(tipoUsuario === 'motorista' ? '🚗 Você (Motorista)' : '👤 Você (Passageiro)');
-      
-      // Salvar no Supabase
-      try {
-        await supabase
-          .from("usuarios")
-          .upsert({
-            id: meuID,
-            tipo: tipoUsuario,
-            nome: tipoUsuario === 'motorista' ? 'Motorista' : 'Passageiro',
-            latitude: lat,
-            longitude: lng,
-            online: true,
-            atualizado_em: new Date().toISOString()
-          });
-      } catch (err) {
-        console.error('Erro ao salvar:', err);
-      }
+      map.setView([latitude, longitude], 15);
     },
-    (err) => {
-      console.error('Erro GPS:', err);
-      showToast('Erro ao acessar GPS. Verifique as permissões.', 'error');
-    },
-    {
-      enableHighAccuracy: true,
-      maximumAge: 5000,
-      timeout: 10000
-    }
+    (err) => showToast('Erro de GPS: ' + err.message, 'error'),
+    { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
   );
 }
 
-// Calcular distância entre dois pontos
-function calcularDistancia(pos1, pos2) {
-  const R = 6371;
-  const dLat = (pos2.lat - pos1.lat) * Math.PI / 180;
-  const dLon = (pos2.lng - pos1.lng) * Math.PI / 180;
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.cos(pos1.lat * Math.PI / 180) * Math.cos(pos2.lat * Math.PI / 180) *
-            Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c;
+function iniciarRastreamentoMotorista(motorista) {
+  if (driverRouteInterval) clearInterval(driverRouteInterval);
+  
+  driverRouteInterval = setInterval(async () => {
+    const { data } = await supabase
+      .from('usuarios')
+      .select('latitude, longitude')
+      .eq('id', motorista.id)
+      .single();
+    
+    if (data && driverMarker) {
+      driverMarker.setLatLng([data.latitude, data.longitude]);
+      
+      // Calcular distância
+      const userPos = userMarker?.getLatLng();
+      if (userPos) {
+        const dist = calcularDistancia(userPos.lat, userPos.lng, data.latitude, data.longitude);
+        document.getElementById('driverDistance').innerHTML = dist < 1 ? `${Math.round(dist * 1000)}m` : `${dist.toFixed(1)}km`;
+      }
+    }
+  }, 2000);
 }
 
-// Atualizar mapa com veículos
-async function atualizarVeiculos() {
-  if (!tipoUsuario) return;
+// ========== EVENT LISTENERS ==========
+function attachEventListeners() {
+  // Tornar-se motorista
+  const becomeDriverBtn = document.getElementById('becomeDriverBtn');
+  if (becomeDriverBtn) {
+    becomeDriverBtn.onclick = async () => {
+      currentUser = { tipo: 'motorista', id: userId };
+      await supabase.from('usuarios').upsert({
+        id: userId,
+        tipo: 'motorista',
+        online: true,
+        nome: 'Motorista',
+        atualizado_em: new Date().toISOString()
+      });
+      iniciarGPS();
+      renderHomeScreen();
+      showToast('Você agora é motorista!', 'success');
+      
+      // Monitorar solicitações
+      monitorarSolicitacoes();
+    };
+  }
   
-  try {
-    const { data, error } = await supabase
-      .from("usuarios")
-      .select("*")
-      .eq("online", true);
-    
-    if (error) throw error;
-    
-    const vehiclesContainer = document.getElementById('vehiclesContainer');
-    
-    if (tipoUsuario === 'passageiro' && minhaPosicao) {
-      // Passageiro: mostrar motoristas próximos
-      const motoristas = data.filter(u => u.tipo === 'motorista' && u.id !== meuID);
-      
-      if (motoristas.length > 0) {
-        const vehiclesList = motoristas.map(m => {
-          const distancia = calcularDistancia(minhaPosicao, { lat: m.latitude, lng: m.longitude });
-          return `
-            <div class="vehicle-item">
-              <div class="vehicle-icon">🚗</div>
-              <div class="vehicle-info">
-                <div class="vehicle-name">Motorista próximo</div>
-                <div class="vehicle-distance">${distancia < 1 ? `${Math.round(distancia * 1000)}m` : `${distancia.toFixed(1)}km`} de distância</div>
-              </div>
-              <div class="distance-badge">${distancia < 1 ? 'Muito perto!' : 'Disponível'}</div>
-            </div>
-          `;
-        }).join('');
-        
-        vehiclesContainer.innerHTML = `
-          <div style="margin-top: 15px;">
-            <strong><i class="fas fa-car"></i> Motoristas próximos (${motoristas.length})</strong>
-            <div class="vehicles-list" style="margin-top: 10px;">
-              ${vehiclesList}
-            </div>
-          </div>
-        `;
-      } else {
-        vehiclesContainer.innerHTML = `
-          <div class="loading">
-            <i class="fas fa-search"></i> Procurando motoristas próximos...
-          </div>
-        `;
-      }
-      
-      // Atualizar marcadores dos motoristas no mapa
-      data.forEach(usuario => {
-        if (usuario.tipo === 'motorista' && usuario.id !== meuID) {
-          const pos = [usuario.latitude, usuario.longitude];
-          
-          if (marcadoresVeiculos[usuario.id]) {
-            marcadoresVeiculos[usuario.id].setLatLng(pos);
-          } else {
-            const marker = L.marker(pos, { icon: iconeVeiculoOutro })
-              .addTo(map)
-              .bindPopup(`
-                <div style="text-align: center;">
-                  <strong>🚗 Motorista</strong><br>
-                  Distância: ${calcularDistancia(minhaPosicao, { lat: usuario.latitude, lng: usuario.longitude }).toFixed(1)}km
-                </div>
-              `);
-            marcadoresVeiculos[usuario.id] = marker;
-          }
-        }
+  // Tornar-se passageiro
+  const becomePassengerBtn = document.getElementById('becomePassengerBtn');
+  if (becomePassengerBtn) {
+    becomePassengerBtn.onclick = async () => {
+      currentUser = { tipo: 'passageiro', id: userId };
+      await supabase.from('usuarios').upsert({
+        id: userId,
+        tipo: 'passageiro',
+        online: true,
+        nome: 'Passageiro',
+        atualizado_em: new Date().toISOString()
       });
-      
-    } else if (tipoUsuario === 'motorista') {
-      // Motorista: ver passageiros próximos
-      const passageiros = data.filter(u => u.tipo === 'passageiro');
-      
-      if (passageiros.length > 0) {
-        vehiclesContainer.innerHTML = `
-          <div style="margin-top: 15px; padding: 12px; background: #e0e7ff; border-radius: 12px;">
-            <i class="fas fa-users"></i> <strong>${passageiros.length} passageiros</strong> na região aguardando
-          </div>
-        `;
-      } else {
-        vehiclesContainer.innerHTML = `
-          <div class="loading">
-            <i class="fas fa-clock"></i> Aguardando passageiros...
-          </div>
-        `;
-      }
-      
-      // Mostrar passageiros no mapa
-      data.forEach(usuario => {
-        if (usuario.tipo === 'passageiro') {
-          const pos = [usuario.latitude, usuario.longitude];
-          
-          if (marcadoresVeiculos[usuario.id]) {
-            marcadoresVeiculos[usuario.id].setLatLng(pos);
-          } else {
-            const marker = L.marker(pos, { icon: iconePassageiroLocal })
-              .addTo(map)
-              .bindPopup('🚶 Passageiro aguardando');
-            marcadoresVeiculos[usuario.id] = marker;
-          }
-        }
-      });
-    }
+      iniciarGPS();
+      renderHomeScreen();
+      showToast('Você agora é passageiro!', 'success');
+    };
+  }
+  
+  // Solicitar corrida
+  const solicitarBtn = document.getElementById('solicitarCorridaBtn');
+  if (solicitarBtn) {
+    const destinoInput = document.getElementById('destinoInput');
+    const origemInput = document.getElementById('origemInput');
+    let selectedRide = 'econômico';
     
-    // Limpar marcadores antigos
-    const idsAtivos = new Set(data.map(u => u.id));
-    Object.keys(marcadoresVeiculos).forEach(id => {
-      if (!idsAtivos.has(id)) {
-        map.removeLayer(marcadoresVeiculos[id]);
-        delete marcadoresVeiculos[id];
-      }
+    // Seleção de tipo de corrida
+    document.querySelectorAll('.ride-option').forEach(opt => {
+      opt.onclick = () => {
+        document.querySelectorAll('.ride-option').forEach(o => o.classList.remove('selected'));
+        opt.classList.add('selected');
+        selectedRide = opt.dataset.rideType;
+        solicitarBtn.disabled = false;
+      };
     });
     
-  } catch (err) {
-    console.error('Erro ao atualizar:', err);
+    solicitarBtn.onclick = () => {
+      solicitarCorrida(origemInput?.value, destinoInput?.value, selectedRide);
+    };
+  }
+  
+  // Cancelar corrida
+  const cancelarBtn = document.getElementById('cancelarCorridaBtn');
+  if (cancelarBtn) cancelarBtn.onclick = cancelarCorrida;
+  
+  // Ações do motorista
+  const chegandoBtn = document.getElementById('chegandoBtn');
+  if (chegandoBtn) chegandoBtn.onclick = motoristaChegou;
+  
+  const iniciarCorridaBtn = document.getElementById('iniciarCorridaBtn');
+  if (iniciarCorridaBtn) iniciarCorridaBtn.onclick = iniciarCorrida;
+  
+  const finalizarCorridaBtn = document.getElementById('finalizarCorridaBtn');
+  if (finalizarCorridaBtn) finalizarCorridaBtn.onclick = finalizarCorrida;
+  
+  const goOfflineBtn = document.getElementById('goOfflineBtn');
+  if (goOfflineBtn) {
+    goOfflineBtn.onclick = async () => {
+      if (watchId) navigator.geolocation.clearWatch(watchId);
+      await supabase.from('usuarios').update({ online: false }).eq('id', userId);
+      currentUser = null;
+      currentRide = null;
+      renderHomeScreen();
+      showToast('Você está offline', 'info');
+    };
   }
 }
 
-// Encerrar sessão
-async function encerrarSessao() {
-  if (watchId) {
-    navigator.geolocation.clearWatch(watchId);
-    watchId = null;
-  }
-  
-  if (updateInterval) {
-    clearInterval(updateInterval);
-    updateInterval = null;
-  }
-  
-  try {
-    await supabase
-      .from("usuarios")
-      .update({ online: false })
-      .eq("id", meuID);
-  } catch (err) {
-    console.error('Erro ao encerrar:', err);
-  }
-  
-  if (markerMotorista) {
-    map.removeLayer(markerMotorista);
-    markerMotorista = null;
-  }
-  
-  Object.keys(marcadoresVeiculos).forEach(id => {
-    map.removeLayer(marcadoresVeiculos[id]);
-    delete marcadoresVeiculos[id];
-  });
-  
-  tipoUsuario = null;
-  minhaPosicao = null;
-  updateUI();
-  document.getElementById('vehiclesContainer').innerHTML = '';
-  showToast('Sessão encerrada', 'info');
+function monitorarSolicitacoes() {
+  supabase
+    .channel('corridas')
+    .on('postgres_changes', 
+      { event: 'INSERT', schema: 'public', table: 'corridas' },
+      async (payload) => {
+        if (currentUser?.tipo === 'motorista' && !currentRide) {
+          showToast('Nova solicitação de corrida!', 'success');
+          // Auto-aceitar (simulado)
+          setTimeout(async () => {
+            await supabase
+              .from('corridas')
+              .update({
+                status: 'aceito',
+                motorista_id: userId,
+                motorista_nome: 'Motorista'
+              })
+              .eq('id', payload.new.id);
+            
+            currentRide = payload.new;
+            currentRide.status = 'aceito';
+            renderHomeScreen();
+            showToast('Corrida aceita! Vá buscar o passageiro.', 'success');
+          }, 2000);
+        }
+      }
+    )
+    .subscribe();
 }
 
-// Event listeners
-document.getElementById('btnMotorista').onclick = async () => {
-  if (tipoUsuario) await encerrarSessao();
-  tipoUsuario = 'motorista';
-  updateUI();
-  iniciarGPS();
+// Verificar usuário existente
+async function verificarUsuario() {
+  const { data } = await supabase
+    .from('usuarios')
+    .select('*')
+    .eq('id', userId)
+    .single();
   
-  if (updateInterval) clearInterval(updateInterval);
-  updateInterval = setInterval(atualizarVeiculos, 2000);
-};
-
-document.getElementById('btnPassageiro').onclick = async () => {
-  if (tipoUsuario) await encerrarSessao();
-  tipoUsuario = 'passageiro';
-  updateUI();
-  iniciarGPS();
-  
-  if (updateInterval) clearInterval(updateInterval);
-  updateInterval = setInterval(atualizarVeiculos, 2000);
-};
-
-document.getElementById('btnEncerrar').onclick = async () => {
-  await encerrarSessao();
-};
-
-// Painel minimizável
-let minimized = false;
-const painel = document.getElementById('painel');
-const toggleBtn = document.getElementById('toggleBtn');
-const panelContent = document.getElementById('panelContent');
-const panelHeader = document.getElementById('togglePanel');
-
-function togglePanel() {
-  minimized = !minimized;
-  if (minimized) {
-    painel.classList.add('minimizado');
-    toggleBtn.innerHTML = '<i class="fas fa-chevron-up"></i>';
-    panelContent.style.display = 'none';
-  } else {
-    painel.classList.remove('minimizado');
-    toggleBtn.innerHTML = '<i class="fas fa-chevron-down"></i>';
-    panelContent.style.display = 'block';
+  if (data && data.online) {
+    currentUser = { tipo: data.tipo, id: userId };
+    iniciarGPS();
   }
+  
+  renderHomeScreen();
 }
 
-toggleBtn.onclick = togglePanel;
-panelHeader.onclick = togglePanel;
+verificarUsuario();
 
-// Limpar ao fechar
-window.addEventListener('beforeunload', () => {
-  if (watchId) navigator.geolocation.clearWatch(watchId);
-  supabase.from("usuarios").update({ online: false }).eq("id", meuID);
-});
+// Controle do bottom sheet
+let isCollapsed = true;
+const sheet = document.getElementById('bottomSheet');
+const handle = document.getElementById('sheetHandle');
 
-// Iniciar
-updateUI();
-console.log('App 99 iniciado! ID:', meuID);
+handle.onclick = () => {
+  isCollapsed = !isCollapsed;
+  if (isCollapsed) sheet.classList.add('collapsed');
+  else sheet.classList.remove('collapsed');
+};
 </script>
 
 </body>
