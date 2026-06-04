@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>GoMove - App de Transporte Completo</title>
+<title>GoMove - App de Transporte</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -29,7 +29,6 @@ body {
   z-index: 1;
 }
 
-/* Bottom Sheet */
 .bottom-sheet {
   position: absolute;
   bottom: 0;
@@ -258,11 +257,6 @@ body {
   animation: slideUp 0.3s ease;
 }
 
-@keyframes slideUp {
-  from { transform: translateY(100px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-
 .solicitacao-card {
   background: white;
   border: 2px solid #667eea;
@@ -273,9 +267,9 @@ body {
   transition: all 0.2s;
 }
 
-.solicitacao-card:hover {
-  transform: scale(1.02);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+@keyframes slideUp {
+  from { transform: translateY(100px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
 
 @media (min-width: 768px) {
@@ -289,7 +283,12 @@ body {
 
 <div class="bottom-sheet collapsed" id="bottomSheet">
   <div class="sheet-handle" id="sheetHandle"></div>
-  <div class="sheet-content" id="sheetContent"></div>
+  <div class="sheet-content" id="sheetContent">
+    <div style="text-align: center; padding: 20px;">
+      <i class="fas fa-spinner fa-pulse" style="font-size: 40px; color: #667eea;"></i>
+      <p style="margin-top: 12px; color: #64748b;">Inicializando...</p>
+    </div>
+  </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -310,16 +309,79 @@ let userMarker = null;
 let driverMarker = null;
 let routePolyline = null;
 let subscription = null;
+let driverInterval = null;
 
 const userId = localStorage.getItem('gomove_user_id') || crypto.randomUUID();
 localStorage.setItem('gomove_user_id', userId);
 
-// Preços
 const RIDE_TYPES = {
   econômico: { name: 'Econômico', icon: '🚗', multiplier: 1, basePrice: 5 },
   comfort: { name: 'Comfort', icon: '🚙', multiplier: 1.5, basePrice: 7.5 },
   black: { name: 'Black', icon: '🖤', multiplier: 2, basePrice: 10 }
 };
+
+// ========== CRIAÇÃO AUTOMÁTICA DAS TABELAS ==========
+async function setupDatabase() {
+  console.log('📦 Verificando/Criando tabelas no Supabase...');
+  
+  // Criar tabela usuarios
+  try {
+    await supabase.rpc('create_usuarios_table');
+  } catch (e) {
+    const { error } = await supabase.query(`
+      CREATE TABLE IF NOT EXISTS usuarios (
+        id TEXT PRIMARY KEY,
+        tipo TEXT CHECK (tipo IN ('motorista', 'passageiro')),
+        nome TEXT,
+        latitude FLOAT,
+        longitude FLOAT,
+        online BOOLEAN DEFAULT false,
+        carro TEXT,
+        placa TEXT,
+        avaliacao FLOAT DEFAULT 5.0,
+        criado_em TIMESTAMP DEFAULT NOW(),
+        atualizado_em TIMESTAMP DEFAULT NOW()
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_usuarios_online ON usuarios(online);
+      CREATE INDEX IF NOT EXISTS idx_usuarios_tipo ON usuarios(tipo);
+    `);
+    if (error) console.log('Tabela usuarios já existe ou erro:', error);
+  }
+  
+  // Criar tabela corridas
+  try {
+    const { error } = await supabase.query(`
+      CREATE TABLE IF NOT EXISTS corridas (
+        id TEXT PRIMARY KEY,
+        passageiro_id TEXT,
+        motorista_id TEXT,
+        passageiro_nome TEXT,
+        motorista_nome TEXT,
+        motorista_carro TEXT,
+        origem TEXT NOT NULL,
+        origem_lat FLOAT,
+        origem_lng FLOAT,
+        destino TEXT NOT NULL,
+        tipo TEXT CHECK (tipo IN ('econômico', 'comfort', 'black')),
+        status TEXT CHECK (status IN ('solicitado', 'aceito', 'chegando', 'emCurso', 'finalizado', 'cancelado')),
+        preco DECIMAL(10,2),
+        criado_em TIMESTAMP DEFAULT NOW(),
+        aceito_em TIMESTAMP,
+        chegando_em TIMESTAMP,
+        iniciado_em TIMESTAMP,
+        finalizado_em TIMESTAMP
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_corridas_status ON corridas(status);
+      CREATE INDEX IF NOT EXISTS idx_corridas_passageiro ON corridas(passageiro_id);
+      CREATE INDEX IF NOT EXISTS idx_corridas_motorista ON corridas(motorista_id);
+    `);
+    if (error) console.log('Tabela corridas já existe:', error);
+  } catch (e) {}
+  
+  console.log('✅ Banco de dados configurado');
+}
 
 // ========== INICIALIZAR MAPA ==========
 function initMap() {
@@ -345,37 +407,13 @@ const passengerIcon = L.divIcon({
 function showToast(msg, type = 'info') {
   const toast = document.createElement('div');
   toast.className = 'toast';
-  toast.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i> ${msg}`;
+    toast.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i> ${msg}`;
   toast.style.background = type === 'error' ? '#ef4444' : type === 'success' ? '#10b981' : '#1e293b';
   document.body.appendChild(toast);
   setTimeout(() => toast.remove(), 3000);
 }
 
-// ========== FUNÇÃO PRINCIPAL: MOTORISTAS PRÓXIMOS ==========
-async function buscarMotoristasProximos(lat, lng, raioKm = 5) {
-  try {
-    const { data, error } = await supabase
-      .rpc('motoristas_proximos', {
-        p_latitude: lat,
-        p_longitude: lng,
-        p_raio_km: raioKm
-      });
-    
-    if (error) throw error;
-    return data || [];
-  } catch (err) {
-    console.error('Erro ao buscar motoristas:', err);
-    // Fallback: buscar todos motoristas online
-    const { data } = await supabase
-      .from('usuarios')
-      .select('*')
-      .eq('tipo', 'motorista')
-      .eq('online', true);
-    return data || [];
-  }
-}
-
-// ========== SOLICITAR CORRIDA ==========
+// ========== FUNÇÕES PRINCIPAIS ==========
 async function solicitarCorrida(origem, destino, tipo) {
   if (!currentUser || currentUser.tipo !== 'passageiro') {
     showToast('Você precisa estar como passageiro', 'error');
@@ -387,7 +425,6 @@ async function solicitarCorrida(origem, destino, tipo) {
     return;
   }
   
-  // Pegar localização atual
   let origemLat = null, origemLng = null;
   if (userMarker) {
     const pos = userMarker.getLatLng();
@@ -414,19 +451,16 @@ async function solicitarCorrida(origem, destino, tipo) {
   const { error } = await supabase.from('corridas').insert([novaCorrida]);
   
   if (error) {
-    showToast('Erro ao solicitar corrida: ' + error.message, 'error');
+    showToast('Erro ao solicitar corrida', 'error');
     return;
   }
   
   currentRide = novaCorrida;
-  showToast(`✅ Corrida solicitada! Preço: R$ ${preco}`, 'success');
+  showToast(`✅ Corrida solicitada! R$ ${preco}`, 'success');
   renderScreen();
-  
-  // Aguardar motorista aceitar
   aguardarAceiteMotorista(novaCorrida.id);
 }
 
-// Aguardar motorista aceitar a corrida
 function aguardarAceiteMotorista(rideId) {
   const channel = supabase
     .channel(`ride_${rideId}`)
@@ -436,17 +470,14 @@ function aguardarAceiteMotorista(rideId) {
       table: 'corridas',
       filter: `id=eq.${rideId}`
     }, async (payload) => {
-      const updatedRide = payload.new;
-      currentRide = updatedRide;
+      currentRide = payload.new;
       
-      if (updatedRide.status === 'aceito' && updatedRide.motorista_id) {
-        showToast(`🚗 Motorista aceitou! Ele está a caminho.`, 'success');
-        
-        // Buscar dados do motorista
+      if (currentRide.status === 'aceito' && currentRide.motorista_id) {
+        showToast(`🚗 Motorista a caminho!`, 'success');
         const { data: motorista } = await supabase
           .from('usuarios')
           .select('*')
-          .eq('id', updatedRide.motorista_id)
+          .eq('id', currentRide.motorista_id)
           .single();
         
         if (motorista) {
@@ -454,12 +485,11 @@ function aguardarAceiteMotorista(rideId) {
           currentRide.motorista_carro = motorista.carro;
           iniciarRastreamentoMotorista(motorista);
         }
-        
         renderScreen();
         channel.unsubscribe();
       }
       
-      if (updatedRide.status === 'cancelado') {
+      if (currentRide.status === 'cancelado') {
         showToast('Corrida cancelada', 'error');
         currentRide = null;
         renderScreen();
@@ -469,11 +499,8 @@ function aguardarAceiteMotorista(rideId) {
     .subscribe();
 }
 
-// ========== MOTORISTA: ESCUTAR SOLICITAÇÕES ==========
 function escutarSolicitacoes() {
-  if (subscription) {
-    subscription.unsubscribe();
-  }
+  if (subscription) subscription.unsubscribe();
   
   subscription = supabase
     .channel('solicitacoes')
@@ -482,23 +509,15 @@ function escutarSolicitacoes() {
       schema: 'public',
       table: 'corridas',
       filter: `status=eq.solicitado`
-    }, (payload) => {
-      const novaCorrida = payload.new;
+    }, () => {
       showToast(`📱 Nova solicitação de corrida!`, 'success');
-      renderScreen(); // Atualizar tela para mostrar o botão de aceitar
+      renderScreen();
     })
     .subscribe();
 }
 
-// ========== MOTORISTA: ACEITAR CORRIDA ==========
 async function aceitarCorrida(ride) {
   if (!currentUser || currentUser.tipo !== 'motorista') return;
-  
-  // Verificar se o motorista está online
-  await supabase
-    .from('usuarios')
-    .update({ online: true })
-    .eq('id', userId);
   
   const { error } = await supabase
     .from('corridas')
@@ -514,34 +533,27 @@ async function aceitarCorrida(ride) {
     showToast('Erro ao aceitar corrida', 'error');
   } else {
     currentRide = { ...ride, status: 'aceito', motorista_id: userId };
-    showToast(`✅ Corrida aceita! Vá buscar o passageiro.`, 'success');
+    showToast(`✅ Corrida aceita!`, 'success');
     renderScreen();
     
-    // Traçar rota até o passageiro
     if (ride.origem_lat && ride.origem_lng && userMarker) {
       const motoristaPos = userMarker.getLatLng();
-      traçarRota(motoristaPos.lat, motoristaPos.lng, ride.origem_lat, ride.origem_lng);
+      tracarRota(motoristaPos.lat, motoristaPos.lng, ride.origem_lat, ride.origem_lng);
     }
   }
 }
 
-// ========== TRAÇAR ROTA ==========
-async function traçarRota(origemLat, origemLng, destinoLat, destinoLng) {
-  // Usar OSRM para rota real
+async function tracarRota(origemLat, origemLng, destinoLat, destinoLng) {
   const url = `https://router.project-osrm.org/route/v1/driving/${origemLng},${origemLat};${destinoLng},${destinoLat}?overview=full&geometries=geojson`;
   
   try {
     const response = await fetch(url);
     const data = await response.json();
     
-    if (routePolyline) {
-      map.removeLayer(routePolyline);
-    }
+    if (routePolyline) map.removeLayer(routePolyline);
     
     const route = data.routes[0];
-    const geojson = route.geometry;
-    
-    routePolyline = L.geoJSON(geojson, {
+    routePolyline = L.geoJSON(route.geometry, {
       style: { color: '#667eea', weight: 4, opacity: 0.7 }
     }).addTo(map);
     
@@ -550,9 +562,6 @@ async function traçarRota(origemLat, origemLng, destinoLat, destinoLng) {
     console.error('Erro ao traçar rota:', err);
   }
 }
-
-// ========== RASTREAMENTO DO MOTORISTA ==========
-let driverInterval = null;
 
 function iniciarRastreamentoMotorista(motorista) {
   if (driverInterval) clearInterval(driverInterval);
@@ -572,16 +581,10 @@ function iniciarRastreamentoMotorista(motorista) {
           .addTo(map)
           .bindPopup('🚗 Motorista');
       }
-      
-      // Centralizar no motorista se estiver em corrida
-      if (currentRide && currentRide.status === 'aceito') {
-        map.setView([data.latitude, data.longitude], 15);
-      }
     }
   }, 2000);
 }
 
-// ========== ATUALIZAR LOCALIZAÇÃO ==========
 function iniciarGPS() {
   if (watchId) navigator.geolocation.clearWatch(watchId);
   
@@ -605,7 +608,7 @@ function iniciarGPS() {
         const icon = currentUser?.tipo === 'motorista' ? driverIcon : passengerIcon;
         userMarker = L.marker([latitude, longitude], { icon })
           .addTo(map)
-          .bindPopup(currentUser?.tipo === 'motorista' ? '🚗 Você (Motorista)' : '👤 Você');
+          .bindPopup(currentUser?.tipo === 'motorista' ? '🚗 Você' : '👤 Você');
       }
       
       map.setView([latitude, longitude], 15);
@@ -615,28 +618,17 @@ function iniciarGPS() {
   );
 }
 
-// ========== AÇÕES DO MOTORISTA ==========
 async function motoristaChegou() {
   if (!currentRide) return;
-  
-  await supabase
-    .from('corridas')
-    .update({ status: 'chegando', chegando_em: new Date().toISOString() })
-    .eq('id', currentRide.id);
-  
+  await supabase.from('corridas').update({ status: 'chegando', chegando_em: new Date().toISOString() }).eq('id', currentRide.id);
   currentRide.status = 'chegando';
-  showToast('✅ Você chegou ao local do passageiro!', 'success');
+  showToast('✅ Você chegou ao local!', 'success');
   renderScreen();
 }
 
 async function iniciarCorrida() {
   if (!currentRide) return;
-  
-  await supabase
-    .from('corridas')
-    .update({ status: 'emCurso', iniciado_em: new Date().toISOString() })
-    .eq('id', currentRide.id);
-  
+  await supabase.from('corridas').update({ status: 'emCurso', iniciado_em: new Date().toISOString() }).eq('id', currentRide.id);
   currentRide.status = 'emCurso';
   showToast('🚗 Corrida iniciada!', 'success');
   renderScreen();
@@ -644,34 +636,23 @@ async function iniciarCorrida() {
 
 async function finalizarCorrida() {
   if (!currentRide) return;
-  
-  await supabase
-    .from('corridas')
-    .update({ status: 'finalizado', finalizado_em: new Date().toISOString() })
-    .eq('id', currentRide.id);
-  
-  showToast(`🏁 Corrida finalizada! Valor: R$ ${currentRide.preco}`, 'success');
+  await supabase.from('corridas').update({ status: 'finalizado', finalizado_em: new Date().toISOString() }).eq('id', currentRide.id);
+  showToast(`🏁 Corrida finalizada! R$ ${currentRide.preco}`, 'success');
   currentRide = null;
-  renderScreen();
-  
   if (driverInterval) clearInterval(driverInterval);
   if (routePolyline) map.removeLayer(routePolyline);
+  renderScreen();
 }
 
 async function cancelarCorrida() {
   if (!currentRide) return;
-  
-  await supabase
-    .from('corridas')
-    .update({ status: 'cancelado', cancelado_em: new Date().toISOString() })
-    .eq('id', currentRide.id);
-  
+  await supabase.from('corridas').update({ status: 'cancelado', cancelado_em: new Date().toISOString() }).eq('id', currentRide.id);
   currentRide = null;
   showToast('Corrida cancelada', 'info');
   renderScreen();
 }
 
-// ========== RENDERIZAR TELA ==========
+// ========== RENDERIZAÇÃO ==========
 async function renderScreen() {
   const content = document.getElementById('sheetContent');
   
@@ -705,7 +686,6 @@ async function renderScreen() {
   
   // TELA DO MOTORISTA
   if (currentUser.tipo === 'motorista') {
-    // Verificar se tem corrida ativa
     const { data: corridaAtiva } = await supabase
       .from('corridas')
       .select('*')
@@ -713,17 +693,15 @@ async function renderScreen() {
       .in('status', ['aceito', 'chegando', 'emCurso'])
       .maybeSingle();
     
-    if (corridaAtiva) {
-      currentRide = corridaAtiva;
-    }
+    if (corridaAtiva) currentRide = corridaAtiva;
     
     if (currentRide && ['aceito', 'chegando', 'emCurso'].includes(currentRide.status)) {
       content.innerHTML = `
-        <div class="header"><div class="logo">GoMove - Motorista</div></div>
+        <div class="header"><div class="logo">GoMove</div></div>
         <div class="card">
           <div class="status-badge ${currentRide.status}">
             <i class="fas ${currentRide.status === 'aceito' ? 'fa-car' : 'fa-road'}"></i>
-            ${currentRide.status === 'aceito' ? 'Indo buscar passageiro' : currentRide.status === 'chegando' ? 'Chegou ao local' : 'Em corrida'}
+            ${currentRide.status === 'aceito' ? 'Indo buscar' : currentRide.status === 'chegando' ? 'Chegou ao local' : 'Em corrida'}
           </div>
           <div class="driver-info">
             <div class="driver-avatar"><i class="fas fa-user"></i></div>
@@ -738,7 +716,7 @@ async function renderScreen() {
           ${currentRide.status === 'aceito' ? '<button class="btn-primary" id="chegandoBtn"><i class="fas fa-flag-checkered"></i> Cheguei no local</button>' : ''}
           ${currentRide.status === 'chegando' ? '<button class="btn-primary" id="iniciarCorridaBtn"><i class="fas fa-play"></i> Iniciar Corrida</button>' : ''}
           ${currentRide.status === 'emCurso' ? '<button class="btn-primary" id="finalizarCorridaBtn"><i class="fas fa-flag-checkered"></i> Finalizar Corrida</button>' : ''}
-          <button class="btn-secondary" id="offlineBtn"><i class="fas fa-power-off"></i> Ficar Offline</button>
+          <button class="btn-secondary" id="offlineBtn">Sair</button>
         </div>
       `;
       document.getElementById('chegandoBtn')?.addEventListener('click', motoristaChegou);
@@ -754,7 +732,6 @@ async function renderScreen() {
       return;
     }
     
-    // Buscar solicitações pendentes
     const { data: solicitacoes } = await supabase
       .from('corridas')
       .select('*')
@@ -762,25 +739,24 @@ async function renderScreen() {
       .order('criado_em', { ascending: false });
     
     content.innerHTML = `
-      <div class="header"><div class="logo">GoMove - Motorista</div><div class="user-badge"><i class="fas fa-circle" style="color: #10b981; font-size: 10px;"></i> Online</div></div>
+      <div class="header"><div class="logo">GoMove</div><div class="user-badge"><i class="fas fa-circle" style="color: #10b981; font-size: 10px;"></i> Online</div></div>
       <div class="card">
         <div style="text-align: center; padding: 10px;"><i class="fas fa-car" style="font-size: 48px; color: #667eea;"></i><h3>Aguardando solicitações</h3></div>
         <div id="solicitacoesList"></div>
-        <button class="btn-secondary" id="offlineBtn"><i class="fas fa-power-off"></i> Ficar Offline</button>
+        <button class="btn-secondary" id="offlineBtn">Sair</button>
       </div>
     `;
     
     const listaDiv = document.getElementById('solicitacoesList');
     if (solicitacoes && solicitacoes.length > 0) {
       listaDiv.innerHTML = solicitacoes.map(ride => `
-        <div class="solicitacao-card" data-id="${ride.id}">
+        <div class="solicitacao-card">
           <div style="display: flex; justify-content: space-between;">
-            <div><strong>🚗 ${ride.tipo === 'econômico' ? 'Econômico' : ride.tipo === 'comfort' ? 'Comfort' : 'Black'}</strong></div>
+            <div><strong>🚗 ${ride.tipo}</strong></div>
             <div><strong>R$ ${ride.preco}</strong></div>
           </div>
           <div style="font-size: 0.85rem; color: #64748b; margin-top: 8px;">
-            <i class="fas fa-map-marker-alt"></i> Origem: ${ride.origem}<br>
-            <i class="fas fa-flag-checkered"></i> Destino: ${ride.destino}
+            <i class="fas fa-map-marker-alt"></i> Destino: ${ride.destino}
           </div>
           <button class="btn-primary" style="margin-top: 12px; padding: 10px;" data-aceitar="${ride.id}">Aceitar Corrida</button>
         </div>
@@ -788,13 +764,13 @@ async function renderScreen() {
       
       document.querySelectorAll('[data-aceitar]').forEach(btn => {
         btn.addEventListener('click', async (e) => {
-          const rideId = btn.dataset.aceitar;
+          const rideId = btn.getAttribute('data-aceitar');
           const ride = solicitacoes.find(r => r.id === rideId);
           if (ride) await aceitarCorrida(ride);
         });
       });
     } else {
-      listaDiv.innerHTML = '<div style="text-align: center; padding: 20px; color: #94a3b8;">📱 Nenhuma solicitação no momento</div>';
+      listaDiv.innerHTML = '<div style="text-align: center; padding: 20px; color: #94a3b8;">📱 Nenhuma solicitação</div>';
     }
     
     document.getElementById('offlineBtn')?.addEventListener('click', async () => {
@@ -807,7 +783,6 @@ async function renderScreen() {
   
   // TELA DO PASSAGEIRO
   if (currentUser.tipo === 'passageiro') {
-    // Verificar se tem corrida ativa
     const { data: corridaAtiva } = await supabase
       .from('corridas')
       .select('*')
@@ -819,7 +794,6 @@ async function renderScreen() {
     
     if (corridaAtiva) {
       currentRide = corridaAtiva;
-      
       if (corridaAtiva.motorista_id && !currentRide.motorista_nome) {
         const { data: motorista } = await supabase.from('usuarios').select('*').eq('id', corridaAtiva.motorista_id).single();
         if (motorista) {
@@ -834,7 +808,7 @@ async function renderScreen() {
         <div class="header"><div class="logo">GoMove</div><div class="user-badge"><i class="fas fa-user"></i> Passageiro</div></div>
         <div class="card">
           <div class="status-badge ${currentRide.status}">
-            <i class="fas ${currentRide.status === 'solicitado' ? 'fa-clock' : currentRide.status === 'aceito' ? 'fa-car' : 'fa-road'}"></i>
+            <i class="fas ${currentRide.status === 'solicitado' ? 'fa-clock' : 'fa-car'}"></i>
             ${currentRide.status === 'solicitado' ? 'Procurando motorista...' : currentRide.status === 'aceito' ? 'Motorista a caminho!' : currentRide.status === 'chegando' ? 'Motorista chegou!' : 'Em corrida'}
           </div>
           ${currentRide.motorista_nome ? `
@@ -850,7 +824,7 @@ async function renderScreen() {
             <div class="trip-stat"><div class="trip-stat-label">Destino</div><div class="trip-stat-value">${currentRide.destino}</div></div>
             <div class="trip-stat"><div class="trip-stat-label">Preço</div><div class="trip-stat-value">R$ ${currentRide.preco}</div></div>
           </div>
-          ${currentRide.status === 'solicitado' ? '<button class="btn-primary btn-danger" id="cancelarBtn">Cancelar Corrida</button>' : ''}
+          ${currentRide.status === 'solicitado' ? '<button class="btn-primary btn-danger" id="cancelarBtn">Cancelar</button>' : ''}
           <button class="btn-secondary" id="logoutBtn">Sair</button>
         </div>
       `;
@@ -865,7 +839,6 @@ async function renderScreen() {
       return;
     }
     
-    // Tela de solicitação
     content.innerHTML = `
       <div class="header"><div class="logo">GoMove</div><div class="user-badge"><i class="fas fa-user"></i> Passageiro</div></div>
       <div class="card">
@@ -903,7 +876,8 @@ async function renderScreen() {
     document.getElementById('solicitarBtn')?.addEventListener('click', () => {
       const destino = document.getElementById('destinoInput').value;
       const origem = document.getElementById('origemInput').value;
-      solicitarCorrida(origem, destino, selectedRide);
+      if (destino) solicitarCorrida(origem, destino, selectedRide);
+      else showToast('Digite um destino', 'error');
     });
     document.getElementById('logoutBtn')?.addEventListener('click', async () => {
       if (watchId) navigator.geolocation.clearWatch(watchId);
@@ -914,7 +888,8 @@ async function renderScreen() {
   }
 }
 
-// ========== INICIAR ==========
+// ========== INICIALIZAÇÃO ==========
+await setupDatabase();
 renderScreen();
 
 // Controle do bottom sheet
