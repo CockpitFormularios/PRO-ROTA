@@ -1,31 +1,881 @@
-CREATE TABLE IF NOT EXISTS usuarios (
-    id TEXT PRIMARY KEY,
-    tipo TEXT,
-    nome TEXT,
-    latitude FLOAT,
-    longitude FLOAT,
-    online BOOLEAN DEFAULT false,
-    carro TEXT,
-    criado_em TIMESTAMP DEFAULT NOW()
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>GoMove - Ultra Rápido (50ms)</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; }
+#map { height: 100%; width: 100%; z-index: 1; }
+
+.bottom-sheet {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: white;
+  border-radius: 28px 28px 0 0;
+  z-index: 1000;
+  transition: transform 0.3s;
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+  max-height: 85vh;
+  overflow-y: auto;
+}
+.bottom-sheet.collapsed { transform: translateY(calc(100% - 80px)); }
+.sheet-handle { width: 40px; height: 4px; background: #cbd5e1; border-radius: 2px; margin: 12px auto; cursor: pointer; }
+.sheet-content { padding: 0 20px 20px 20px; }
+
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9; }
+.logo { font-size: 1.5rem; font-weight: 800; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.user-badge { background: #f1f5f9; padding: 8px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 500; }
+.card { background: #f8fafc; border-radius: 20px; padding: 16px; margin-bottom: 16px; }
+
+.btn-primary { width: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 16px; border-radius: 16px; font-size: 1rem; font-weight: 600; cursor: pointer; margin-bottom: 12px; }
+.btn-secondary { width: 100%; background: white; color: #64748b; border: 1px solid #e2e8f0; padding: 12px; border-radius: 16px; cursor: pointer; }
+.btn-danger { background: #ef4444; color: white; }
+.btn-warning { background: #f59e0b; color: white; }
+.btn-success { background: #10b981; color: white; }
+
+.status-badge { display: inline-block; padding: 8px 16px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; margin-bottom: 12px; }
+.status-solicitado { background: #fef3c7; color: #d97706; }
+.status-aceito { background: #dbeafe; color: #2563eb; }
+.status-chegando { background: #fed7aa; color: #c2410c; }
+.status-emCurso { background: #d1fae5; color: #059669; }
+
+.solicitacao-card {
+  background: white;
+  border: 2px solid #667eea;
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 12px;
+  animation: fadeIn 0.2s ease;
+}
+@keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+.button-group { display: flex; gap: 10px; margin-top: 12px; }
+.button-group button { flex: 1; padding: 10px; border-radius: 12px; font-weight: 600; cursor: pointer; border: none; }
+.btn-accept { background: #10b981; color: white; }
+.btn-reject { background: #ef4444; color: white; }
+
+.toast {
+  position: fixed;
+  bottom: 100px;
+  left: 20px;
+  right: 20px;
+  background: #1e293b;
+  color: white;
+  padding: 14px;
+  border-radius: 16px;
+  font-size: 0.85rem;
+  text-align: center;
+  z-index: 2000;
+  animation: slideUp 0.3s ease;
+}
+@keyframes slideUp { from { transform: translateY(100px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+.distance-info {
+  text-align: center;
+  padding: 12px;
+  background: #e0e7ff;
+  border-radius: 12px;
+  margin: 12px 0;
+  font-weight: 600;
+  color: #4338ca;
+  transition: all 0.1s ease;
+}
+
+.ride-option { flex:1; text-align:center; padding:12px; border:2px solid #e2e8f0; border-radius:16px; cursor:pointer; transition: all 0.2s; }
+.ride-option.selected { border-color: #667eea; background: #f0f0ff; }
+
+.tempo-real-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(0,0,0,0.7);
+  color: #10b981;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: bold;
+  z-index: 1000;
+  animation: pulse 1s infinite;
+}
+@keyframes pulse {
+  0% { opacity: 0.7; }
+  50% { opacity: 1; }
+  100% { opacity: 0.7; }
+}
+
+.modal-finalizacao {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.8);
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.3s ease;
+}
+.modal-finalizacao-content {
+  background: white;
+  border-radius: 32px;
+  padding: 32px;
+  text-align: center;
+  max-width: 320px;
+  width: 90%;
+}
+.modal-finalizacao-content i { font-size: 64px; color: #10b981; margin-bottom: 16px; }
+.modal-finalizacao-content h2 { font-size: 24px; margin-bottom: 8px; }
+
+@media (min-width: 768px) {
+  .bottom-sheet { left: auto; right: 20px; bottom: 20px; width: 400px; border-radius: 28px; }
+}
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+<div class="tempo-real-badge" id="tempoRealBadge">
+  <i class="fas fa-bolt"></i> Atualização: 50ms
+</div>
+
+<div class="bottom-sheet collapsed" id="bottomSheet">
+  <div class="sheet-handle" id="sheetHandle"></div>
+  <div class="sheet-content" id="sheetContent"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
+const supabase = createClient(
+  'https://fqbxhkcdefwsuefifygk.supabase.co',
+  'sb_publishable_jC8Ntyx8QD2FHkP8Bqa63A_sLljd1Fj'
 );
 
-CREATE TABLE IF NOT EXISTS corridas (
-    id TEXT PRIMARY KEY,
-    passageiro_id TEXT,
-    motorista_id TEXT,
-    passageiro_nome TEXT,
-    motorista_nome TEXT,
-    motorista_carro TEXT,
-    origem TEXT,
-    origem_lat FLOAT,
-    origem_lng FLOAT,
-    destino TEXT,
-    tipo TEXT,
-    status TEXT DEFAULT 'solicitado',
-    preco DECIMAL(10,2),
-    criado_em TIMESTAMP DEFAULT NOW(),
-    aceito_em TIMESTAMP,
-    chegando_em TIMESTAMP,
-    iniciado_em TIMESTAMP,
-    finalizado_em TIMESTAMP
-);
+// ========== CONFIGURAÇÕES ==========
+let currentUser = null;
+let currentRide = null;
+let watchId = null;
+let map = null;
+let userMarker = null;
+let driverMarker = null;
+let routePolyline = null;
+let driverInterval = null;
+let ultraFastInterval = null;
+let lastUpdateTime = 0;
+
+const userId = localStorage.getItem('gomove_user_id') || crypto.randomUUID();
+localStorage.setItem('gomove_user_id', userId);
+
+// Contador de atualizações
+let updateCount = 0;
+setInterval(() => {
+  document.getElementById('tempoRealBadge').innerHTML = `<i class="fas fa-bolt"></i> ${updateCount} atualizações/seg`;
+  updateCount = 0;
+}, 1000);
+
+// ========== INICIALIZAR MAPA ==========
+function initMap() {
+  map = L.map('map').setView([-23.5505, -46.6333], 14);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© OpenStreetMap',
+    maxZoom: 19
+  }).addTo(map);
+}
+initMap();
+
+// Ícones
+const driverIcon = L.divIcon({
+  html: '<div style="background: #667eea; width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.2); border: 3px solid white;"><i class="fas fa-car" style="color: white; font-size: 22px;"></i></div>',
+  iconSize: [45, 45]
+});
+
+const passengerIcon = L.divIcon({
+  html: '<div style="background: #10b981; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.2); border: 3px solid white;"><i class="fas fa-user" style="color: white; font-size: 18px;"></i></div>',
+  iconSize: [40, 40]
+});
+
+function showToast(msg, type = 'info') {
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.innerHTML = msg;
+  toast.style.background = type === 'error' ? '#ef4444' : type === 'success' ? '#10b981' : '#1e293b';
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+
+function showRideCompletedModal(valor, destino) {
+  const modal = document.createElement('div');
+  modal.className = 'modal-finalizacao';
+  modal.innerHTML = `
+    <div class="modal-finalizacao-content">
+      <i class="fas fa-check-circle"></i>
+      <h2>🏁 Corrida Finalizada!</h2>
+      <p>Destino: ${destino}</p>
+      <p style="font-size: 28px; font-weight: bold; color: #10b981;">R$ ${valor}</p>
+      <p>Agradecemos por usar GoMove!</p>
+      <button class="btn-primary" id="closeModalBtn" style="margin-top: 16px;">OK</button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  document.getElementById('closeModalBtn')?.addEventListener('click', () => {
+    modal.remove();
+    // Limpar marcadores
+    if (driverMarker) map.removeLayer(driverMarker);
+    if (routePolyline) map.removeLayer(routePolyline);
+    driverMarker = null;
+    routePolyline = null;
+  });
+  setTimeout(() => modal.remove(), 5000);
+}
+
+function calcularDistancia(lat1, lng1, lat2, lng2) {
+  if (!lat1 || !lng1 || !lat2 || !lng2) return '--';
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLng/2) * Math.sin(dLng/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const d = R * c;
+  if (d < 1) return `${Math.round(d * 1000)}m`;
+  return `${d.toFixed(1)}km`;
+}
+
+// ========== TRAÇAR ROTA OTIMIZADA ==========
+let lastRouteRequest = 0;
+async function tracarRota(origemLat, origemLng, destinoLat, destinoLng) {
+  if (!origemLat || !origemLng || !destinoLat || !destinoLng) return;
+  
+  const now = Date.now();
+  if (now - lastRouteRequest < 200) return;
+  lastRouteRequest = now;
+  
+  const url = `https://router.project-osrm.org/route/v1/driving/${origemLng},${origemLat};${destinoLng},${destinoLat}?overview=full&geometries=geojson`;
+  
+  try {
+    const response = await fetch(url);
+    const data = await response.json();
+    
+    if (routePolyline) map.removeLayer(routePolyline);
+    
+    if (data.routes && data.routes[0]) {
+      routePolyline = L.geoJSON(data.routes[0].geometry, {
+        style: { color: '#667eea', weight: 5, opacity: 0.8 }
+      }).addTo(map);
+      map.fitBounds(routePolyline.getBounds());
+    }
+  } catch (err) {
+    console.error('Erro ao traçar rota:', err);
+  }
+}
+
+// ========== RASTREAMENTO ULTRA RÁPIDO (50ms) ==========
+function iniciarRastreamentoUltraRapido(motoristaId, passageiroLat, passageiroLng) {
+  if (driverInterval) clearInterval(driverInterval);
+  
+  console.log('⚡ Iniciando rastreamento ULTRA RÁPIDO (50ms):', motoristaId);
+  
+  const buscarLocalizacao = async () => {
+    updateCount++;
+    const startTime = performance.now();
+    
+    const { data: motorista } = await supabase
+      .from('usuarios')
+      .select('latitude, longitude, nome, carro')
+      .eq('id', motoristaId)
+      .single();
+    
+    if (motorista && motorista.latitude && motorista.longitude) {
+      if (driverMarker) {
+        driverMarker.setLatLng([motorista.latitude, motorista.longitude]);
+      } else {
+        driverMarker = L.marker([motorista.latitude, motorista.longitude], { icon: driverIcon })
+          .addTo(map)
+          .bindPopup(`🚗 ${motorista.nome || 'Motorista'}`);
+      }
+      
+      await tracarRota(motorista.latitude, motorista.longitude, passageiroLat, passageiroLng);
+      
+      const distancia = calcularDistancia(motorista.latitude, motorista.longitude, passageiroLat, passageiroLng);
+      const distanceEl = document.getElementById('distanceInfo');
+      if (distanceEl) {
+        distanceEl.innerHTML = `🚗 Motorista está a ${distancia} de você`;
+      }
+    }
+  };
+  
+  buscarLocalizacao();
+  driverInterval = setInterval(buscarLocalizacao, 50);
+}
+
+// ========== FUNÇÕES PRINCIPAIS ==========
+async function solicitarCorrida(destino, tipo) {
+  if (!currentUser || currentUser.tipo !== 'passageiro') {
+    showToast('Você precisa estar como passageiro', 'error');
+    return;
+  }
+  
+  if (!destino) {
+    showToast('Digite um destino', 'error');
+    return;
+  }
+  
+  let origemLat = null, origemLng = null;
+  if (userMarker) {
+    const pos = userMarker.getLatLng();
+    origemLat = pos.lat;
+    origemLng = pos.lng;
+  }
+  
+  const preco = (Math.random() * 15 + 8).toFixed(2);
+  const rideId = crypto.randomUUID();
+  
+  const novaCorrida = {
+    id: rideId,
+    passageiro_id: userId,
+    passageiro_nome: currentUser.nome,
+    origem: 'Minha localização',
+    origem_lat: origemLat,
+    origem_lng: origemLng,
+    destino: destino,
+    tipo: tipo,
+    status: 'solicitado',
+    preco: preco,
+    criado_em: new Date().toISOString()
+  };
+  
+  const { error } = await supabase.from('corridas').insert([novaCorrida]);
+  
+  if (error) {
+    showToast('Erro ao solicitar corrida: ' + error.message, 'error');
+    return;
+  }
+  
+  currentRide = novaCorrida;
+  showToast(`✅ Corrida solicitada! R$ ${preco}`, 'success');
+  renderScreen();
+}
+
+async function aceitarCorrida(ride) {
+  if (!currentUser || currentUser.tipo !== 'motorista') return;
+  
+  console.log('🚗 Aceitando corrida:', ride.id);
+  
+  const { error } = await supabase
+    .from('corridas')
+    .update({
+      status: 'aceito',
+      motorista_id: userId,
+      motorista_nome: currentUser.nome,
+      motorista_carro: currentUser.carro,
+      aceito_em: new Date().toISOString()
+    })
+    .eq('id', ride.id);
+  
+  if (error) {
+    showToast('Erro ao aceitar corrida', 'error');
+  } else {
+    currentRide = { ...ride, status: 'aceito', motorista_id: userId };
+    showToast(`✅ Corrida aceita!`, 'success');
+    renderScreen();
+  }
+}
+
+async function recusarCorrida(ride) {
+  if (!currentUser || currentUser.tipo !== 'motorista') return;
+  
+  await supabase
+    .from('corridas')
+    .update({ status: 'recusado' })
+    .eq('id', ride.id);
+  
+  showToast(`❌ Corrida recusada`, 'info');
+  renderScreen();
+}
+
+async function cancelarCorrida(tipo) {
+  if (!currentRide) return;
+  
+  const motivo = prompt('Motivo do cancelamento:');
+  if (!motivo) return;
+  
+  await supabase
+    .from('corridas')
+    .update({
+      status: 'cancelado',
+      cancelado_por: tipo,
+      motivo_cancelamento: motivo,
+      cancelado_em: new Date().toISOString()
+    })
+    .eq('id', currentRide.id);
+  
+  showToast(`✅ Corrida cancelada`, 'info');
+  currentRide = null;
+  if (driverInterval) clearInterval(driverInterval);
+  if (driverMarker) map.removeLayer(driverMarker);
+  if (routePolyline) map.removeLayer(routePolyline);
+  renderScreen();
+}
+
+async function motoristaChegou() {
+  if (!currentRide) return;
+  await supabase.from('corridas').update({ status: 'chegando', chegando_em: new Date().toISOString() }).eq('id', currentRide.id);
+  showToast('✅ Você chegou ao local!', 'success');
+}
+
+async function iniciarCorrida() {
+  if (!currentRide) return;
+  await supabase.from('corridas').update({ status: 'emCurso', iniciado_em: new Date().toISOString() }).eq('id', currentRide.id);
+  showToast('🚗 Corrida iniciada!', 'success');
+}
+
+async function finalizarCorrida() {
+  if (!currentRide) return;
+  
+  console.log('🏁 Finalizando corrida:', currentRide.id);
+  const preco = currentRide.preco;
+  const destino = currentRide.destino;
+  
+  const { error } = await supabase
+    .from('corridas')
+    .update({
+      status: 'finalizado',
+      finalizado_em: new Date().toISOString()
+    })
+    .eq('id', currentRide.id);
+  
+  if (error) {
+    showToast('Erro ao finalizar corrida', 'error');
+    console.error(error);
+  } else {
+    showToast(`🏁 Corrida finalizada! R$ ${preco}`, 'success');
+    showRideCompletedModal(preco, destino);
+    
+    currentRide = null;
+    if (driverInterval) clearInterval(driverInterval);
+    if (driverMarker) map.removeLayer(driverMarker);
+    if (routePolyline) map.removeLayer(routePolyline);
+    driverMarker = null;
+    routePolyline = null;
+    renderScreen();
+  }
+}
+
+// ========== GPS ULTRA RÁPIDO ==========
+function iniciarGPSUltraRapido() {
+  if (watchId) navigator.geolocation.clearWatch(watchId);
+  
+  watchId = navigator.geolocation.watchPosition(
+    async (pos) => {
+      updateCount++;
+      const { latitude, longitude } = pos.coords;
+      
+      await supabase.from('usuarios').upsert({
+        id: userId,
+        tipo: currentUser?.tipo,
+        nome: currentUser?.nome,
+        latitude,
+        longitude,
+        online: true,
+        carro: currentUser?.carro,
+        atualizado_em: new Date().toISOString()
+      });
+      
+      if (userMarker) {
+        userMarker.setLatLng([latitude, longitude]);
+      } else {
+        const icon = currentUser?.tipo === 'motorista' ? driverIcon : passengerIcon;
+        userMarker = L.marker([latitude, longitude], { icon })
+          .addTo(map)
+          .bindPopup(currentUser?.tipo === 'motorista' ? '🚗 Você' : '👤 Você');
+      }
+      
+      if (currentUser?.tipo === 'passageiro') {
+        map.setView([latitude, longitude], 15);
+      }
+      
+      if (currentUser?.tipo === 'motorista' && currentRide && currentRide.status === 'aceito' && currentRide.origem_lat) {
+        await tracarRota(latitude, longitude, currentRide.origem_lat, currentRide.origem_lng);
+      }
+    },
+    (err) => console.error('Erro GPS:', err),
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+  );
+}
+
+// ========== ATUALIZAÇÃO ULTRA RÁPIDA DO DASHBOARD (50ms) ==========
+function iniciarAtualizacaoUltraRapida() {
+  if (ultraFastInterval) clearInterval(ultraFastInterval);
+  
+  ultraFastInterval = setInterval(async () => {
+    if (!currentUser) return;
+    
+    updateCount++;
+    
+    if (currentUser.tipo === 'motorista') {
+      // Buscar corrida ativa do motorista
+      const { data: corridaAtiva } = await supabase
+        .from('corridas')
+        .select('*')
+        .eq('motorista_id', userId)
+        .in('status', ['aceito', 'chegando', 'emCurso', 'finalizado'])
+        .maybeSingle();
+      
+      // Verificar se a corrida foi finalizada pelo passageiro
+      if (corridaAtiva && corridaAtiva.status === 'finalizado' && currentRide && currentRide.status !== 'finalizado') {
+        showToast(`🏁 Corrida finalizada! R$ ${corridaAtiva.preco}`, 'success');
+        showRideCompletedModal(corridaAtiva.preco, corridaAtiva.destino);
+        currentRide = null;
+        if (driverMarker) map.removeLayer(driverMarker);
+        if (routePolyline) map.removeLayer(routePolyline);
+        driverMarker = null;
+        routePolyline = null;
+        renderScreen();
+        return;
+      }
+      
+      if (corridaAtiva && JSON.stringify(corridaAtiva) !== JSON.stringify(currentRide)) {
+        currentRide = corridaAtiva;
+        renderScreen();
+      }
+      
+      // Buscar solicitações pendentes (apenas se não estiver em corrida)
+      if (!currentRide || !['aceito', 'chegando', 'emCurso'].includes(currentRide.status)) {
+        const { data: solicitacoes } = await supabase
+          .from('corridas')
+          .select('*')
+          .eq('status', 'solicitado')
+          .order('criado_em', { ascending: false });
+        
+        const listaDiv = document.getElementById('solicitacoesList');
+        if (listaDiv && solicitacoes) {
+          const newHtml = solicitacoes.map(ride => `
+            <div class="solicitacao-card">
+              <div><strong>${ride.tipo === 'economico' ? '🚗 Econômico' : ride.tipo === 'comfort' ? '🚙 Comfort' : '🖤 Black'}</strong> - R$ ${ride.preco}</div>
+              <div>📍 Destino: ${ride.destino}</div>
+              <div class="button-group">
+                <button class="btn-accept" data-id="${ride.id}">✅ Aceitar</button>
+                <button class="btn-reject" data-id="${ride.id}">❌ Recusar</button>
+              </div>
+            </div>
+          `).join('');
+          
+          if (listaDiv.innerHTML !== newHtml) {
+            listaDiv.innerHTML = newHtml;
+            document.querySelectorAll('.btn-accept').forEach(btn => {
+              btn.addEventListener('click', async () => {
+                const ride = solicitacoes.find(r => r.id === btn.dataset.id);
+                if (ride) await aceitarCorrida(ride);
+              });
+            });
+            document.querySelectorAll('.btn-reject').forEach(btn => {
+              btn.addEventListener('click', async () => {
+                const ride = solicitacoes.find(r => r.id === btn.dataset.id);
+                if (ride) await recusarCorrida(ride);
+              });
+            });
+          }
+        }
+      }
+    }
+    
+    if (currentUser.tipo === 'passageiro') {
+      // Buscar corrida ativa do passageiro (incluindo finalizado)
+      const { data: corridaAtiva } = await supabase
+        .from('corridas')
+        .select('*')
+        .eq('passageiro_id', userId)
+        .in('status', ['solicitado', 'aceito', 'chegando', 'emCurso', 'finalizado'])
+        .order('criado_em', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      // IMPORTANTE: Verificar se a corrida foi finalizada
+      if (corridaAtiva && corridaAtiva.status === 'finalizado') {
+        if (!currentRide || currentRide.status !== 'finalizado') {
+          console.log('📢 Passageiro: Corrida finalizada detectada!');
+          showToast(`🏁 Corrida finalizada! R$ ${corridaAtiva.preco}`, 'success');
+          showRideCompletedModal(corridaAtiva.preco, corridaAtiva.destino);
+          currentRide = null;
+          if (driverInterval) clearInterval(driverInterval);
+          if (driverMarker) map.removeLayer(driverMarker);
+          if (routePolyline) map.removeLayer(routePolyline);
+          driverMarker = null;
+          routePolyline = null;
+          renderScreen();
+          return;
+        }
+      }
+      
+      if (corridaAtiva && JSON.stringify(corridaAtiva) !== JSON.stringify(currentRide)) {
+        const oldStatus = currentRide?.status;
+        currentRide = corridaAtiva;
+        
+        // Verificar se foi aceita
+        if (corridaAtiva.status === 'aceito' && corridaAtiva.motorista_id && corridaAtiva.origem_lat && oldStatus !== 'aceito') {
+          showToast(`✅ Motorista aceitou sua corrida!`, 'success');
+          iniciarRastreamentoUltraRapido(corridaAtiva.motorista_id, corridaAtiva.origem_lat, corridaAtiva.origem_lng);
+        }
+        
+        // Verificar se motorista chegou
+        if (corridaAtiva.status === 'chegando' && oldStatus !== 'chegando') {
+          showToast(`📍 Motorista chegou ao local!`, 'success');
+        }
+        
+        // Verificar se corrida foi iniciada
+        if (corridaAtiva.status === 'emCurso' && oldStatus !== 'emCurso') {
+          showToast(`🚗 Corrida em andamento!`, 'success');
+        }
+        
+        renderScreen();
+      }
+    }
+  }, 50);
+}
+
+// ========== RENDERIZAÇÃO ==========
+async function renderScreen() {
+  const content = document.getElementById('sheetContent');
+  
+  if (!currentUser) {
+    content.innerHTML = `
+      <div class="header">
+        <div class="logo">GoMove</div>
+      </div>
+      <div class="card">
+        <button class="btn-primary" id="becomeDriverBtn"><i class="fas fa-car"></i> Sou Motorista</button>
+        <button class="btn-secondary" id="becomePassengerBtn"><i class="fas fa-walking"></i> Sou Passageiro</button>
+      </div>
+    `;
+    
+    document.getElementById('becomeDriverBtn')?.addEventListener('click', async () => {
+      const nome = prompt('Seu nome:', 'Motorista');
+      const carro = prompt('Seu carro:', 'Sedan Preto');
+      currentUser = { tipo: 'motorista', id: userId, nome: nome || 'Motorista', carro: carro || 'Sedan' };
+      await supabase.from('usuarios').upsert({ id: userId, tipo: 'motorista', online: true, nome: currentUser.nome, carro: currentUser.carro });
+      iniciarGPSUltraRapido();
+      iniciarAtualizacaoUltraRapida();
+      renderScreen();
+      showToast('Você está online como motorista! Atualização a cada 50ms', 'success');
+    });
+    
+    document.getElementById('becomePassengerBtn')?.addEventListener('click', async () => {
+      const nome = prompt('Seu nome:', 'Passageiro');
+      currentUser = { tipo: 'passageiro', id: userId, nome: nome || 'Passageiro' };
+      await supabase.from('usuarios').upsert({ id: userId, tipo: 'passageiro', online: true, nome: currentUser.nome });
+      iniciarGPSUltraRapido();
+      iniciarAtualizacaoUltraRapida();
+      renderScreen();
+      showToast('Você está online como passageiro! Atualização a cada 50ms', 'success');
+    });
+    return;
+  }
+  
+  // ========== TELA DO MOTORISTA ==========
+  if (currentUser.tipo === 'motorista') {
+    if (currentRide && ['aceito', 'chegando', 'emCurso'].includes(currentRide.status)) {
+      let statusText = '';
+      let statusClass = '';
+      let actionButton = '';
+      
+      if (currentRide.status === 'aceito') {
+        statusText = '🚗 Indo buscar passageiro';
+        statusClass = 'status-aceito';
+        actionButton = '<button class="btn-primary btn-warning" id="chegandoBtn">📍 Cheguei no local</button>';
+      } else if (currentRide.status === 'chegando') {
+        statusText = '📍 Você chegou ao local';
+        statusClass = 'status-chegando';
+        actionButton = '<button class="btn-primary" id="iniciarCorridaBtn">🚗 Iniciar Corrida</button>';
+      } else if (currentRide.status === 'emCurso') {
+        statusText = '🟢 Em corrida';
+        statusClass = 'status-emCurso';
+        actionButton = '<button class="btn-primary btn-success" id="finalizarCorridaBtn">🏁 Finalizar Corrida</button>';
+      }
+      
+      content.innerHTML = `
+        <div class="header">
+          <div class="logo">GoMove</div>
+          <div class="user-badge">${currentUser.nome}</div>
+        </div>
+        <div class="card">
+          <div class="status-badge ${statusClass}">${statusText}</div>
+          <div style="margin-bottom: 12px;">
+            <div><strong>Destino:</strong> ${currentRide.destino}</div>
+            <div><strong>Preço:</strong> R$ ${currentRide.preco}</div>
+          </div>
+          ${actionButton}
+          <button class="btn-danger" id="cancelarBtn">❌ Cancelar Corrida</button>
+          <button class="btn-secondary" id="offlineBtn">Sair</button>
+        </div>
+      `;
+      
+      document.getElementById('chegandoBtn')?.addEventListener('click', motoristaChegou);
+      document.getElementById('iniciarCorridaBtn')?.addEventListener('click', iniciarCorrida);
+      document.getElementById('finalizarCorridaBtn')?.addEventListener('click', finalizarCorrida);
+      document.getElementById('cancelarBtn')?.addEventListener('click', () => cancelarCorrida('motorista'));
+      document.getElementById('offlineBtn')?.addEventListener('click', async () => {
+        if (watchId) navigator.geolocation.clearWatch(watchId);
+        if (ultraFastInterval) clearInterval(ultraFastInterval);
+        await supabase.from('usuarios').update({ online: false }).eq('id', userId);
+        currentUser = null;
+        currentRide = null;
+        renderScreen();
+      });
+      return;
+    }
+    
+    content.innerHTML = `
+      <div class="header">
+        <div class="logo">GoMove</div>
+        <div class="user-badge" style="background: #d1fae5; color: #059669;">🟢 Online (50ms)</div>
+      </div>
+      <div class="card">
+        <div style="text-align: center; margin-bottom: 16px;">
+          <i class="fas fa-car" style="font-size: 48px; color: #667eea;"></i>
+          <h3>Solicitações em Tempo Real</h3>
+          <p style="font-size: 11px; color: #10b981;">⚡ Atualizando a cada 50ms</p>
+        </div>
+        <div id="solicitacoesList"></div>
+        <button class="btn-secondary" id="offlineBtn">Sair</button>
+      </div>
+    `;
+    
+    document.getElementById('offlineBtn')?.addEventListener('click', async () => {
+      if (watchId) navigator.geolocation.clearWatch(watchId);
+      if (ultraFastInterval) clearInterval(ultraFastInterval);
+      await supabase.from('usuarios').update({ online: false }).eq('id', userId);
+      currentUser = null;
+      renderScreen();
+    });
+  }
+  
+  // ========== TELA DO PASSAGEIRO ==========
+  if (currentUser.tipo === 'passageiro') {
+    if (currentRide && ['solicitado', 'aceito', 'chegando', 'emCurso'].includes(currentRide.status)) {
+      let statusText = '';
+      let statusClass = '';
+      
+      if (currentRide.status === 'solicitado') {
+        statusText = '⏳ Procurando motorista...';
+        statusClass = 'status-solicitado';
+      } else if (currentRide.status === 'aceito') {
+        statusText = '🚗 Motorista a caminho!';
+        statusClass = 'status-aceito';
+      } else if (currentRide.status === 'chegando') {
+        statusText = '📍 Motorista chegou!';
+        statusClass = 'status-chegando';
+      } else if (currentRide.status === 'emCurso') {
+        statusText = '🟢 Em corrida';
+        statusClass = 'status-emCurso';
+      }
+      
+      content.innerHTML = `
+        <div class="header">
+          <div class="logo">GoMove</div>
+          <div class="user-badge">${currentUser.nome}</div>
+        </div>
+        <div class="card">
+          <div class="status-badge ${statusClass}">${statusText}</div>
+          ${currentRide.motorista_nome ? `
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+              <div style="width: 50px; height: 50px; background: #667eea; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white;">
+                <i class="fas fa-user"></i>
+              </div>
+              <div>
+                <div style="font-weight: 600;">${currentRide.motorista_nome}</div>
+                <div style="font-size: 0.8rem; color: #64748b;">${currentRide.motorista_carro || 'Veículo'}</div>
+              </div>
+            </div>
+            <div id="distanceInfo" class="distance-info">🔄 Calculando distância...</div>
+          ` : ''}
+          <div><strong>Destino:</strong> ${currentRide.destino}</div>
+          <div><strong>Preço:</strong> R$ ${currentRide.preco}</div>
+          <div style="margin-top: 16px;">
+            <button class="btn-danger" id="cancelarBtn">❌ Cancelar Corrida</button>
+            <button class="btn-secondary" id="logoutBtn">Sair</button>
+          </div>
+        </div>
+      `;
+      
+      document.getElementById('cancelarBtn')?.addEventListener('click', () => cancelarCorrida('passageiro'));
+      document.getElementById('logoutBtn')?.addEventListener('click', async () => {
+        if (watchId) navigator.geolocation.clearWatch(watchId);
+        if (ultraFastInterval) clearInterval(ultraFastInterval);
+        if (driverInterval) clearInterval(driverInterval);
+        await supabase.from('usuarios').update({ online: false }).eq('id', userId);
+        currentUser = null;
+        currentRide = null;
+        renderScreen();
+      });
+      return;
+    }
+    
+    content.innerHTML = `
+      <div class="header">
+        <div class="logo">GoMove</div>
+        <div class="user-badge">${currentUser.nome}</div>
+      </div>
+      <div class="card">
+        <div style="margin-bottom: 16px;">
+          <div style="margin-bottom: 8px;"><i class="fas fa-map-marker-alt"></i> <strong>DESTINO</strong></div>
+          <input type="text" id="destinoInput" placeholder="Para onde você vai?" style="width:100%; padding:12px; border:1px solid #e2e8f0; border-radius:12px; font-size:1rem;">
+        </div>
+        <div class="ride-options" style="display: flex; gap: 10px; margin-bottom: 16px;">
+          <div class="ride-option" data-ride="economico">🚗<br><strong>Econômico</strong><br>R$5</div>
+          <div class="ride-option" data-ride="comfort">🚙<br><strong>Comfort</strong><br>R$7</div>
+          <div class="ride-option" data-ride="black">🖤<br><strong>Black</strong><br>R$10</div>
+        </div>
+        <button class="btn-primary" id="solicitarBtn">Solicitar Corrida</button>
+        <button class="btn-secondary" id="logoutBtn">Sair</button>
+      </div>
+    `;
+    
+    let selectedRide = 'economico';
+    document.querySelectorAll('.ride-option').forEach(opt => {
+      opt.addEventListener('click', function() {
+        document.querySelectorAll('.ride-option').forEach(o => o.classList.remove('selected'));
+        this.classList.add('selected');
+        selectedRide = this.dataset.ride;
+      });
+    });
+    document.querySelector('.ride-option')?.classList.add('selected');
+    
+    document.getElementById('solicitarBtn')?.addEventListener('click', () => {
+      const destino = document.getElementById('destinoInput').value;
+      if (destino) solicitarCorrida(destino, selectedRide);
+      else showToast('Digite um destino', 'error');
+    });
+    
+    document.getElementById('logoutBtn')?.addEventListener('click', async () => {
+      if (watchId) navigator.geolocation.clearWatch(watchId);
+      if (ultraFastInterval) clearInterval(ultraFastInterval);
+      await supabase.from('usuarios').update({ online: false }).eq('id', userId);
+      currentUser = null;
+      renderScreen();
+    });
+  }
+}
+
+// ========== INICIALIZAR ==========
+renderScreen();
+
+let isCollapsed = true;
+document.getElementById('sheetHandle')?.addEventListener('click', () => {
+  isCollapsed = !isCollapsed;
+  document.getElementById('bottomSheet').classList.toggle('collapsed', isCollapsed);
+});
+</script>
+</body>
+</html>
