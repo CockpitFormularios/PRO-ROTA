@@ -2,198 +2,526 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mini App Corridas</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Mini App Corridas - Rastreamento em Tempo Real</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
 <style>
-html,body{margin:0;padding:0;height:100%;font-family:Arial,sans-serif}
-#map{height:100vh;width:100%}
-#painel{
-position:absolute;top:10px;left:10px;z-index:9999;
-background:#fff;padding:15px;border-radius:10px;
-box-shadow:0 0 10px rgba(0,0,0,.3);width:230px
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
-button{width:100%;padding:10px;margin-top:6px;cursor:pointer}
-#status{margin-top:10px;font-size:13px}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+  height: 100vh;
+  overflow: hidden;
+}
+
+#map {
+  height: 100%;
+  width: 100%;
+  z-index: 1;
+}
+
+/* Painel moderno */
+#painel {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  right: 20px;
+  max-width: 320px;
+  z-index: 1000;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+h3 {
+  margin: 0 0 12px 0;
+  font-size: 1.3rem;
+  text-align: center;
+  color: #1a1a2e;
+  font-weight: 600;
+}
+
+.btn-group {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+button {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: white;
+}
+
+button:active {
+  transform: scale(0.97);
+}
+
+#motorista {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+#motorista:hover {
+  background: linear-gradient(135deg, #5a67d8 0%, #6b46a0 100%);
+}
+
+#passageiro {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+#passageiro:hover {
+  background: linear-gradient(135deg, #e879f9 0%, #f43f5e 100%);
+}
+
+#encerrar {
+  background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+}
+
+#encerrar:hover {
+  background: linear-gradient(135deg, #b91c1c 0%, #7f1d1d 100%);
+}
+
+#status {
+  margin-top: 12px;
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  text-align: center;
+  color: #1e293b;
+  border-left: 4px solid #3b82f6;
+  word-break: break-word;
+}
+
+#status.online-motorista {
+  border-left-color: #10b981;
+  background: #ecfdf5;
+}
+
+#status.online-passageiro {
+  border-left-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.toast {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  right: 20px;
+  background: #1e293b;
+  color: white;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  text-align: center;
+  z-index: 2000;
+  animation: slideUp 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.toast.error {
+  background: #dc2626;
+}
+
+.toast.success {
+  background: #10b981;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Indicador de usuário ativo */
+.user-badge {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  z-index: 1000;
+  background: rgba(0,0,0,0.75);
+  backdrop-filter: blur(8px);
+  padding: 8px 16px;
+  border-radius: 30px;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 500;
+  pointer-events: none;
+}
+
+/* Responsivo */
+@media (max-width: 640px) {
+  #painel {
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    max-width: none;
+    padding: 12px;
+  }
+  
+  button {
+    padding: 10px;
+    font-size: 0.9rem;
+  }
+  
+  h3 {
+    font-size: 1.1rem;
+    margin-bottom: 10px;
+  }
+}
 </style>
 </head>
 <body>
 
 <div id="painel">
-<h3>App de Corridas</h3>
-
-<button id="motorista">🚗 Sou Motorista</button>
-<button id="passageiro">🚶 Sou Passageiro</button>
-<button id="encerrar">🔴 Encerrar</button>
-
-<div id="status">Escolha uma opção</div>
+  <h3>🚗 App de Corridas</h3>
+  <div class="btn-group">
+    <button id="motorista">🚗 Motorista</button>
+    <button id="passageiro">🚶 Passageiro</button>
+  </div>
+  <button id="encerrar">🔴 Encerrar Corrida</button>
+  <div id="status">⚡ Escolha uma opção para começar</div>
 </div>
 
 <div id="map"></div>
+<div id="toast-container"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script type="module">
-import { createClient }
-from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
+// Configuração do Supabase
 const supabase = createClient(
-'https://fqbxhkcdefwsuefifygk.supabase.co',
-'sb_publishable_jC8Ntyx8QD2FHkP8Bqa63A_sLljd1Fj'
+  'https://fqbxhkcdefwsuefifygk.supabase.co',
+  'sb_publishable_jC8Ntyx8QD2FHkP8Bqa63A_sLljd1Fj'
 );
 
+// Variáveis globais
 let tipoUsuario = null;
 let watchId = null;
-
+let intervalId = null;
 let meuID = localStorage.getItem("usuario_id");
 
-if(!meuID){
+if (!meuID) {
   meuID = crypto.randomUUID();
   localStorage.setItem("usuario_id", meuID);
 }
 
 const statusDiv = document.getElementById("status");
+const map = L.map("map").setView([-23.5505, -46.6333], 13);
 
-const map = L.map("map").setView([-14.235,-51.925],4);
+// Camada do mapa
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> & CartoDB',
+  maxZoom: 19,
+  subdomains: 'abcd'
+}).addTo(map);
 
-L.tileLayer(
-'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-{maxZoom:19}
-).addTo(map);
-
+// Armazenar marcadores
 const marcadores = {};
 
+// Ícones personalizados
 const carroIcon = L.icon({
-iconUrl:'https://cdn-icons-png.flaticon.com/512/744/744465.png',
-iconSize:[40,40]
+  iconUrl: 'https://cdn-icons-png.flaticon.com/512/744/744465.png',
+  iconSize: [45, 45],
+  popupAnchor: [0, -20]
 });
 
 const passageiroIcon = L.icon({
-iconUrl:'https://cdn-icons-png.flaticon.com/512/64/64113.png',
-iconSize:[35,35]
+  iconUrl: 'https://cdn-icons-png.flaticon.com/512/64/64113.png',
+  iconSize: [40, 40],
+  popupAnchor: [0, -15]
 });
 
-document.getElementById("motorista").onclick = ()=>{
-  tipoUsuario = "motorista";
-  iniciarGPS();
-};
+// Função para mostrar notificações toast
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.remove();
+  }, 3000);
+}
 
-document.getElementById("passageiro").onclick = ()=>{
-  tipoUsuario = "passageiro";
-  iniciarGPS();
-};
+// Atualizar status visual
+function updateStatusUI(lat, lng) {
+  if (!tipoUsuario) return;
+  
+  const statusClass = tipoUsuario === 'motorista' ? 'online-motorista' : 'online-passageiro';
+  statusDiv.className = statusClass;
+  
+  if (lat && lng) {
+    statusDiv.innerHTML = `
+      🟢 <strong>${tipoUsuario === 'motorista' ? 'Motorista' : 'Passageiro'} Online</strong><br>
+      📍 ${lat.toFixed(6)}°, ${lng.toFixed(6)}°<br>
+      🔄 Atualizando em tempo real
+    `;
+  } else {
+    statusDiv.innerHTML = `
+      🟢 <strong>${tipoUsuario === 'motorista' ? 'Motorista' : 'Passageiro'} Online</strong><br>
+      📡 Aguardando sinal GPS...
+    `;
+  }
+}
 
-document.getElementById("encerrar").onclick = async ()=>{
-
-  if(watchId !== null){
+// Iniciar rastreamento GPS
+function iniciarGPS() {
+  if (!navigator.geolocation) {
+    showToast('❌ Seu navegador não suporta GPS', 'error');
+    return;
+  }
+  
+  statusDiv.innerHTML = "📡 Obtendo localização...";
+  statusDiv.className = '';
+  
+  navigator.geolocation.getCurrentPosition(
+    () => {
+      // Sucesso ao obter permissão
+      showToast(`✅ ${tipoUsuario === 'motorista' ? 'Motorista' : 'Passageiro'} ativado! Rastreando posição...`, 'success');
+    },
+    (err) => {
+      if (err.code === 1) {
+        showToast('❌ Permissão de localização negada. Ative o GPS.', 'error');
+      } else {
+        showToast('❌ Erro ao acessar GPS: ' + err.message, 'error');
+      }
+    }
+  );
+  
+  if (watchId !== null) {
     navigator.geolocation.clearWatch(watchId);
   }
-
-  await supabase
-  .from("usuarios")
-  .update({online:false})
-  .eq("id",meuID);
-
-  statusDiv.innerHTML = "🔴 Offline";
-};
-
-function iniciarGPS(){
-
-  statusDiv.innerHTML = "Obtendo GPS...";
-
+  
   watchId = navigator.geolocation.watchPosition(
-
-    async(pos)=>{
-
+    async (pos) => {
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
-
-      statusDiv.innerHTML =
-      `${tipoUsuario}<br>Lat: ${lat.toFixed(6)}<br>Lng: ${lng.toFixed(6)}`;
-
-      map.setView([lat,lng],16);
-
-      await supabase
-      .from("usuarios")
-      .upsert({
-        id:meuID,
-        tipo:tipoUsuario,
-        nome:tipoUsuario,
-        latitude:lat,
-        longitude:lng,
-        online:true,
-        atualizado_em:new Date().toISOString()
-      });
-
+      
+      updateStatusUI(lat, lng);
+      
+      // Centralizar mapa no usuário
+      map.setView([lat, lng], 16);
+      
+      try {
+        // Enviar localização para o Supabase
+        const { error } = await supabase
+          .from("usuarios")
+          .upsert({
+            id: meuID,
+            tipo: tipoUsuario,
+            nome: tipoUsuario === 'motorista' ? 'Motorista' : 'Passageiro',
+            latitude: lat,
+            longitude: lng,
+            online: true,
+            atualizado_em: new Date().toISOString()
+          }, { onConflict: 'id' });
+        
+        if (error) {
+          console.error('Erro Supabase:', error);
+          showToast('Erro ao enviar localização', 'error');
+        }
+      } catch (err) {
+        console.error('Erro de rede:', err);
+      }
     },
-    (err)=>{
-      alert(err.message);
+    (err) => {
+      console.error('Erro GPS:', err);
+      let errorMsg = 'Erro no GPS: ';
+      switch(err.code) {
+        case 1: errorMsg += 'Permissão negada'; break;
+        case 2: errorMsg += 'Posição indisponível'; break;
+        case 3: errorMsg += 'Timeout'; break;
+        default: errorMsg += err.message;
+      }
+      showToast(errorMsg, 'error');
+      statusDiv.innerHTML = `⚠️ ${errorMsg}`;
     },
     {
-      enableHighAccuracy:true,
-      maximumAge:0,
-      timeout:10000
+      enableHighAccuracy: true,
+      maximumAge: 5000,
+      timeout: 15000
     }
   );
 }
 
-async function atualizarMapa(){
-
-  const { data,error } = await supabase
-  .from("usuarios")
-  .select("*");
-
-  if(error){
-    console.log(error);
-    return;
-  }
-
-  data.forEach(usuario=>{
-
-    if(usuario.online === false) return;
-
-    if(tipoUsuario === "motorista"){
-      if(usuario.tipo !== "motorista") return;
+// Atualizar mapa com outros usuários
+async function atualizarMapa() {
+  if (!tipoUsuario) return;
+  
+  try {
+    const { data, error } = await supabase
+      .from("usuarios")
+      .select("*")
+      .eq("online", true)
+      .gte("atualizado_em", new Date(Date.now() - 30000).toISOString()); // Apenas atualizações recentes
+    
+    if (error) {
+      console.error('Erro ao buscar usuários:', error);
+      return;
     }
-
-    if(tipoUsuario === "passageiro"){
-      if(
-        usuario.tipo !== "motorista" &&
-        usuario.id !== meuID
-      ){
-        return;
+    
+    if (!data || data.length === 0) return;
+    
+    data.forEach(usuario => {
+      // Filtros baseados no tipo de usuário
+      if (tipoUsuario === "motorista") {
+        // Motorista vê apenas outros motoristas
+        if (usuario.tipo !== "motorista") return;
+        if (usuario.id === meuID) return;
+      } 
+      else if (tipoUsuario === "passageiro") {
+        // Passageiro vê motoristas e a si mesmo
+        if (usuario.tipo !== "motorista" && usuario.id !== meuID) return;
       }
-    }
-
-    const pos = [usuario.latitude, usuario.longitude];
-
-    const icone =
-      usuario.tipo === "motorista"
-      ? carroIcon
-      : passageiroIcon;
-
-    if(marcadores[usuario.id]){
-
-      marcadores[usuario.id].setLatLng(pos);
-
-    }else{
-
-      marcadores[usuario.id] =
-      L.marker(pos,{icon:icone})
-      .addTo(map)
-      .bindPopup(usuario.tipo);
-
-    }
-
-  });
-
+      
+      // Validar coordenadas
+      if (!usuario.latitude || !usuario.longitude) return;
+      
+      const pos = [usuario.latitude, usuario.longitude];
+      const icone = usuario.tipo === "motorista" ? carroIcon : passageiroIcon;
+      
+      if (marcadores[usuario.id]) {
+        marcadores[usuario.id].setLatLng(pos);
+      } else {
+        const popupText = usuario.id === meuID 
+          ? `👤 Você (${usuario.tipo === 'motorista' ? 'Motorista' : 'Passageiro'})`
+          : `🚗 ${usuario.tipo === 'motorista' ? 'Motorista' : 'Passageiro'}`;
+        
+        marcadores[usuario.id] = L.marker(pos, { icon: icone })
+          .addTo(map)
+          .bindPopup(popupText);
+      }
+    });
+    
+    // Limpar marcadores de usuários offline
+    const onlineIds = new Set(data.map(u => u.id));
+    Object.keys(marcadores).forEach(id => {
+      if (!onlineIds.has(id)) {
+        map.removeLayer(marcadores[id]);
+        delete marcadores[id];
+      }
+    });
+    
+  } catch (err) {
+    console.error('Erro na atualização do mapa:', err);
+  }
 }
 
-setInterval(atualizarMapa,3000);
-atualizarMapa();
+// Encerrar sessão
+async function encerrarSessao() {
+  if (watchId !== null) {
+    navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+  }
+  
+  if (intervalId) {
+    clearInterval(intervalId);
+    intervalId = null;
+  }
+  
+  try {
+    await supabase
+      .from("usuarios")
+      .update({ online: false })
+      .eq("id", meuID);
+  } catch (err) {
+    console.error('Erro ao encerrar:', err);
+  }
+  
+  tipoUsuario = null;
+  statusDiv.innerHTML = "⚡ Desconectado. Escolha uma opção";
+  statusDiv.className = '';
+  showToast('🔴 Sessão encerrada', 'info');
+  
+  // Limpar todos os marcadores exceto o próprio se existir
+  Object.keys(marcadores).forEach(id => {
+    map.removeLayer(marcadores[id]);
+    delete marcadores[id];
+  });
+}
 
+// Event listeners
+document.getElementById("motorista").onclick = () => {
+  if (tipoUsuario) encerrarSessao();
+  tipoUsuario = "motorista";
+  iniciarGPS();
+  
+  if (intervalId) clearInterval(intervalId);
+  intervalId = setInterval(atualizarMapa, 2000);
+};
+
+document.getElementById("passageiro").onclick = () => {
+  if (tipoUsuario) encerrarSessao();
+  tipoUsuario = "passageiro";
+  iniciarGPS();
+  
+  if (intervalId) clearInterval(intervalId);
+  intervalId = setInterval(atualizarMapa, 2000);
+};
+
+document.getElementById("encerrar").onclick = async () => {
+  await encerrarSessao();
+};
+
+// Limpar ao fechar a página
+window.addEventListener('beforeunload', () => {
+  if (watchId !== null) {
+    navigator.geolocation.clearWatch(watchId);
+  }
+  supabase
+    .from("usuarios")
+    .update({ online: false })
+    .eq("id", meuID)
+    .then(() => console.log('Status atualizado'));
+});
+
+// Verificar se já existe uma sessão ativa ao carregar
+async function verificarSessaoAtiva() {
+  const { data } = await supabase
+    .from("usuarios")
+    .select("tipo, online")
+    .eq("id", meuID)
+    .single();
+  
+  if (data && data.online) {
+    showToast('🔄 Sessão anterior encontrada. Inicie novamente.', 'info');
+    await supabase.from("usuarios").update({ online: false }).eq("id", meuID);
+  }
+}
+
+verificarSessaoAtiva();
+
+// Adicionar badge de usuário
+const badge = document.createElement('div');
+badge.className = 'user-badge';
+badge.innerHTML = `🆔 ${meuID.slice(0, 8)}...`;
+document.body.appendChild(badge);
+
+console.log('App iniciado! ID:', meuID);
 </script>
 
 </body>
