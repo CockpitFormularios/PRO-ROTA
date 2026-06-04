@@ -259,6 +259,12 @@ body {
   border-radius: 16px;
   padding: 16px;
   margin-bottom: 12px;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .button-group {
@@ -338,13 +344,15 @@ let map = null;
 let userMarker = null;
 let driverMarker = null;
 let routePolyline = null;
-let distanciaAtual = null;
+let solicicoesChannel = null;
+let corridaChannel = null;
+let rastreamentoChannel = null;
 
 const userId = localStorage.getItem('gomove_user_id') || crypto.randomUUID();
 localStorage.setItem('gomove_user_id', userId);
 
 const RIDE_TYPES = {
-  econômico: { name: 'Econômico', icon: '🚗', basePrice: 5 },
+  economico: { name: 'Econômico', icon: '🚗', basePrice: 5 },
   comfort: { name: 'Comfort', icon: '🚙', basePrice: 7.5 },
   black: { name: 'Black', icon: '🖤', basePrice: 10 }
 };
@@ -393,107 +401,103 @@ function calcularDistancia(lat1, lon1, lat2, lon2) {
   return `${d.toFixed(1)} km`;
 }
 
-// ========== FUNÇÃO PARA ATUALIZAR ROTA EM TEMPO REAL ==========
-async function atualizarRotaEmTempoReal(origemLat, origemLng, destinoLat, destinoLng) {
-  const url = `https://router.project-osrm.org/route/v1/driving/${origemLng},${origemLat};${destinoLng},${destinoLat}?overview=full&geometries=geojson`;
+// ========== FUNÇÃO PARA ATUALIZAR LISTA DE SOLICITAÇÕES EM TEMPO REAL ==========
+let solicitacoesAtuais = [];
+
+async function carregarSolicitacoes() {
+  const { data } = await supabase
+    .from('corridas')
+    .select('*')
+    .eq('status', 'solicitado')
+    .order('criado_em', { ascending: false });
   
-  try {
-    const response = await fetch(url);
-    const data = await response.json();
-    
-    if (routePolyline) {
-      map.removeLayer(routePolyline);
-    }
-    
-    if (data.routes && data.routes[0]) {
-      const route = data.routes[0];
-      routePolyline = L.geoJSON(route.geometry, {
-        style: { color: '#667eea', weight: 5, opacity: 0.8 }
-      }).addTo(map);
-      
-      // Calcular distância
-      const distanciaKm = route.distance / 1000;
-      const tempoMin = Math.round(route.duration / 60);
-      
-      return { distancia: distanciaKm.toFixed(1), tempo: tempoMin };
-    }
-  } catch (err) {
-    console.error('Erro ao atualizar rota:', err);
+  if (data) {
+    solicitacoesAtuais = data;
+    atualizarListaSolicitacoes();
   }
-  return null;
 }
 
-// ========== RASTREAMENTO DO MOTORISTA EM TEMPO REAL ==========
-let realtimeSubscription = null;
+function atualizarListaSolicitacoes() {
+  const listaDiv = document.getElementById('solicitacoesList');
+  if (!listaDiv) return;
+  
+  if (solicitacoesAtuais.length > 0) {
+    listaDiv.innerHTML = solicitacoesAtuais.map(ride => `
+      <div class="solicitacao-card" id="solicitacao-${ride.id}">
+        <div><strong>${ride.tipo}</strong> - R$ ${ride.preco}</div>
+        <div style="font-size: 0.85rem; margin-top: 8px;">📍 Destino: ${ride.destino}</div>
+        <div class="button-group">
+          <button class="btn-accept" data-id="${ride.id}">✅ Aceitar</button>
+          <button class="btn-reject" data-id="${ride.id}">❌ Recusar</button>
+        </div>
+      </div>
+    `).join('');
+    
+    // Adicionar event listeners
+    document.querySelectorAll('.btn-accept').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const ride = solicitacoesAtuais.find(r => r.id === btn.dataset.id);
+        if (ride) await aceitarCorrida(ride);
+      });
+    });
+    
+    document.querySelectorAll('.btn-reject').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const ride = solicitacoesAtuais.find(r => r.id === btn.dataset.id);
+        if (ride) await recusarCorrida(ride);
+      });
+    });
+  } else {
+    listaDiv.innerHTML = '<div style="text-align: center; padding: 20px;">📱 Nenhuma solicitação no momento</div>';
+  }
+}
 
-function iniciarRastreamentoMotoristaEmTempoReal(motoristaId, passageiroLat, passageiroLng) {
-  if (realtimeSubscription) {
-    realtimeSubscription.unsubscribe();
+// ========== ESCUTAR NOVAS SOLICITAÇÕES EM TEMPO REAL (MOTORISTA) ==========
+function iniciarEscutaSolicitacoes() {
+  if (solicicoesChannel) {
+    solicicoesChannel.unsubscribe();
   }
   
-  console.log('🔄 Iniciando rastreamento em tempo real do motorista:', motoristaId);
+  console.log('🎧 Motorista iniciando escuta de solicitações em tempo real...');
   
-  realtimeSubscription = supabase
-    .channel(`motorista_${motoristaId}`)
+  solicicoesChannel = supabase
+    .channel('solicitacoes-realtime')
+    .on('postgres_changes', {
+      event: 'INSERT',
+      schema: 'public',
+      table: 'corridas',
+      filter: 'status=eq.solicitado'
+    }, (payload) => {
+      console.log('📱 Nova solicitação recebida em tempo real!', payload.new);
+      showToast(`📱 Nova solicitação de corrida para ${payload.new.destino}!`, 'success');
+      
+      // Adicionar à lista e atualizar
+      solicitacoesAtuais.unshift(payload.new);
+      atualizarListaSolicitacoes();
+    })
     .on('postgres_changes', {
       event: 'UPDATE',
       schema: 'public',
-      table: 'usuarios',
-      filter: `id=eq.${motoristaId}`
-    }, async (payload) => {
-      const motoristaData = payload.new;
-      
-      if (motoristaData && motoristaData.latitude && motoristaData.longitude) {
-        console.log('📍 Motorista se moveu para:', motoristaData.latitude, motoristaData.longitude);
-        
-        // Atualizar marcador do motorista
-        if (driverMarker) {
-          driverMarker.setLatLng([motoristaData.latitude, motoristaData.longitude]);
-        } else {
-          driverMarker = L.marker([motoristaData.latitude, motoristaData.longitude], { icon: driverIcon })
-            .addTo(map)
-            .bindPopup('🚗 Motorista');
-        }
-        
-        // Atualizar rota da posição atual do motorista até o passageiro
-        const rotaInfo = await atualizarRotaEmTempoReal(
-          motoristaData.latitude, 
-          motoristaData.longitude,
-          passageiroLat, 
-          passageiroLng
-        );
-        
-        // Calcular distância atual
-        const distancia = calcularDistancia(
-          motoristaData.latitude, 
-          motoristaData.longitude,
-          passageiroLat, 
-          passageiroLng
-        );
-        
-        distanciaAtual = distancia;
-        
-        // Atualizar informação de distância na tela
-        const distanceEl = document.getElementById('distanceInfo');
-        if (distanceEl) {
-          distanceEl.innerHTML = `🚗 Motorista está a ${distancia} de você`;
-        }
-        
-        // Centralizar mapa para ver a rota
-        if (routePolyline) {
-          map.fitBounds(routePolyline.getBounds());
-        }
-      }
+      table: 'corridas',
+      filter: 'status=eq.aceito'
+    }, (payload) => {
+      // Remover da lista de solicitações quando for aceita
+      solicitacoesAtuais = solicitacoesAtuais.filter(r => r.id !== payload.new.id);
+      atualizarListaSolicitacoes();
     })
     .subscribe();
 }
 
-// ========== FUNÇÃO PARA ESCUTAR CORRIDA DO PASSAGEIRO ==========
-function escutarCorridaPassageiro() {
-  console.log('🎧 Passageiro escutando corridas...');
+// ========== ESCUTAR CORRIDA DO PASSAGEIRO ==========
+function iniciarEscutaCorridaPassageiro() {
+  if (corridaChannel) {
+    corridaChannel.unsubscribe();
+  }
   
-  supabase
-    .channel('corrida_passageiro')
+  console.log('🎧 Passageiro iniciando escuta da corrida...');
+  
+  corridaChannel = supabase
+    .channel('corrida-passageiro')
     .on('postgres_changes', {
       event: 'UPDATE',
       schema: 'public',
@@ -501,14 +505,14 @@ function escutarCorridaPassageiro() {
       filter: `passageiro_id=eq.${userId}`
     }, async (payload) => {
       const updatedRide = payload.new;
-      console.log('📢 Atualização da corrida:', updatedRide.status);
+      console.log('📢 Atualização da corrida do passageiro:', updatedRide.status);
       
       currentRide = updatedRide;
       
       if (updatedRide.status === 'aceito' && updatedRide.motorista_id) {
         showToast(`✅ Motorista aceitou sua corrida! Ele está a caminho.`, 'success');
         
-        // Buscar dados do motorista
+        // Buscar localização do motorista e iniciar rastreamento
         const { data: motorista } = await supabase
           .from('usuarios')
           .select('*')
@@ -516,20 +520,7 @@ function escutarCorridaPassageiro() {
           .single();
         
         if (motorista && currentRide.origem_lat && currentRide.origem_lng) {
-          // Iniciar rastreamento em tempo real
-          iniciarRastreamentoMotoristaEmTempoReal(
-            motorista.id,
-            currentRide.origem_lat,
-            currentRide.origem_lng
-          );
-          
-          // Traçar rota inicial
-          await atualizarRotaEmTempoReal(
-            motorista.latitude,
-            motorista.longitude,
-            currentRide.origem_lat,
-            currentRide.origem_lng
-          );
+          iniciarRastreamentoMotorista(motorista.id, currentRide.origem_lat, currentRide.origem_lng);
         }
         
         renderScreen();
@@ -548,7 +539,7 @@ function escutarCorridaPassageiro() {
       if (updatedRide.status === 'finalizado') {
         showToast(`🏁 Corrida finalizada! R$ ${updatedRide.preco}`, 'success');
         currentRide = null;
-        if (realtimeSubscription) realtimeSubscription.unsubscribe();
+        if (rastreamentoChannel) rastreamentoChannel.unsubscribe();
         if (driverMarker) map.removeLayer(driverMarker);
         if (routePolyline) map.removeLayer(routePolyline);
         renderScreen();
@@ -557,7 +548,7 @@ function escutarCorridaPassageiro() {
       if (updatedRide.status === 'cancelado') {
         showToast(`❌ Corrida cancelada: ${updatedRide.motivo_cancelamento || 'Sem motivo'}`, 'error');
         currentRide = null;
-        if (realtimeSubscription) realtimeSubscription.unsubscribe();
+        if (rastreamentoChannel) rastreamentoChannel.unsubscribe();
         if (driverMarker) map.removeLayer(driverMarker);
         if (routePolyline) map.removeLayer(routePolyline);
         renderScreen();
@@ -566,36 +557,84 @@ function escutarCorridaPassageiro() {
     .subscribe();
 }
 
-// ========== FUNÇÃO PARA ESCUTAR CORRIDA DO MOTORISTA ==========
-function escutarCorridaMotorista() {
-  console.log('🎧 Motorista escutando corridas...');
+// ========== RASTREAMENTO DO MOTORISTA EM TEMPO REAL ==========
+async function iniciarRastreamentoMotorista(motoristaId, passageiroLat, passageiroLng) {
+  if (rastreamentoChannel) {
+    rastreamentoChannel.unsubscribe();
+  }
   
-  supabase
-    .channel('corrida_motorista')
+  console.log('🔄 Iniciando rastreamento em tempo real do motorista:', motoristaId);
+  
+  // Buscar posição inicial do motorista
+  const { data: motoristaData } = await supabase
+    .from('usuarios')
+    .select('*')
+    .eq('id', motoristaId)
+    .single();
+  
+  if (motoristaData && motoristaData.latitude) {
+    await atualizarRota(motoristaData.latitude, motoristaData.longitude, passageiroLat, passageiroLng);
+  }
+  
+  rastreamentoChannel = supabase
+    .channel(`rastreamento-${motoristaId}`)
     .on('postgres_changes', {
       event: 'UPDATE',
       schema: 'public',
-      table: 'corridas',
-      filter: `motorista_id=eq.${userId}`
-    }, (payload) => {
-      const updatedRide = payload.new;
-      console.log('📢 Atualização da corrida:', updatedRide.status);
+      table: 'usuarios',
+      filter: `id=eq.${motoristaId}`
+    }, async (payload) => {
+      const motorista = payload.new;
+      console.log('📍 Motorista se moveu para:', motorista.latitude, motorista.longitude);
       
-      currentRide = updatedRide;
-      
-      if (updatedRide.status === 'cancelado') {
-        showToast(`❌ Corrida cancelada pelo passageiro: ${updatedRide.motivo_cancelamento || 'Sem motivo'}`, 'error');
-        currentRide = null;
-        if (routePolyline) map.removeLayer(routePolyline);
-        renderScreen();
+      if (motorista && motorista.latitude && motorista.longitude) {
+        // Atualizar marcador
+        if (driverMarker) {
+          driverMarker.setLatLng([motorista.latitude, motorista.longitude]);
+        } else {
+          driverMarker = L.marker([motorista.latitude, motorista.longitude], { icon: driverIcon })
+            .addTo(map)
+            .bindPopup('🚗 Motorista');
+        }
+        
+        // Atualizar rota
+        await atualizarRota(motorista.latitude, motorista.longitude, passageiroLat, passageiroLng);
+        
+        // Atualizar distância
+        const distancia = calcularDistancia(motorista.latitude, motorista.longitude, passageiroLat, passageiroLng);
+        const distanceEl = document.getElementById('distanceInfo');
+        if (distanceEl) {
+          distanceEl.innerHTML = `🚗 Motorista está a ${distancia} de você`;
+        }
       }
-      
-      renderScreen();
     })
     .subscribe();
 }
 
-// ========== SOLICITAR CORRIDA ==========
+async function atualizarRota(origemLat, origemLng, destinoLat, destinoLng) {
+  const url = `https://router.project-osrm.org/route/v1/driving/${origemLng},${origemLat};${destinoLng},${destinoLat}?overview=full&geometries=geojson`;
+  
+  try {
+    const response = await fetch(url);
+    const data = await response.json();
+    
+    if (routePolyline) {
+      map.removeLayer(routePolyline);
+    }
+    
+    if (data.routes && data.routes[0]) {
+      routePolyline = L.geoJSON(data.routes[0].geometry, {
+        style: { color: '#667eea', weight: 5, opacity: 0.8 }
+      }).addTo(map);
+      
+      map.fitBounds(routePolyline.getBounds());
+    }
+  } catch (err) {
+    console.error('Erro ao atualizar rota:', err);
+  }
+}
+
+// ========== FUNÇÕES PRINCIPAIS ==========
 async function solicitarCorrida(origem, destino, tipo) {
   if (!currentUser || currentUser.tipo !== 'passageiro') {
     showToast('Você precisa estar como passageiro', 'error');
@@ -640,25 +679,14 @@ async function solicitarCorrida(origem, destino, tipo) {
   currentRide = novaCorrida;
   showToast(`✅ Corrida solicitada! R$ ${preco}`, 'success');
   
-  // Iniciar escuta
-  escutarCorridaPassageiro();
-  
+  iniciarEscutaCorridaPassageiro();
   renderScreen();
 }
 
-// ========== ACEITAR CORRIDA ==========
 async function aceitarCorrida(ride) {
   if (!currentUser || currentUser.tipo !== 'motorista') return;
   
   console.log('🚗 Aceitando corrida:', ride.id);
-  
-  // Buscar localização atual do motorista
-  let motoristaLat = null, motoristaLng = null;
-  if (userMarker) {
-    const pos = userMarker.getLatLng();
-    motoristaLat = pos.lat;
-    motoristaLng = pos.lng;
-  }
   
   const { error } = await supabase
     .from('corridas')
@@ -673,51 +701,31 @@ async function aceitarCorrida(ride) {
   
   if (error) {
     showToast('Erro ao aceitar corrida', 'error');
-    console.error(error);
   } else {
     currentRide = { ...ride, status: 'aceito', motorista_id: userId };
     showToast(`✅ Corrida aceita! Vá buscar o passageiro.`, 'success');
-    
-    // Iniciar escuta
-    escutarCorridaMotorista();
-    
-    // Traçar rota para o passageiro
-    if (ride.origem_lat && ride.origem_lng && motoristaLat && motoristaLng) {
-      await atualizarRotaEmTempoReal(motoristaLat, motoristaLng, ride.origem_lat, ride.origem_lng);
-      map.fitBounds(routePolyline.getBounds());
-    }
-    
     renderScreen();
   }
 }
 
-// ========== RECUSAR CORRIDA ==========
 async function recusarCorrida(ride) {
   if (!currentUser || currentUser.tipo !== 'motorista') return;
   
-  const { error } = await supabase
+  await supabase
     .from('corridas')
-    .update({
-      status: 'recusado'
-    })
+    .update({ status: 'recusado' })
     .eq('id', ride.id);
   
-  if (error) {
-    showToast('Erro ao recusar corrida', 'error');
-  } else {
-    showToast(`❌ Corrida recusada`, 'info');
-    renderScreen();
-  }
+  showToast(`❌ Corrida recusada`, 'info');
 }
 
-// ========== CANCELAR CORRIDA ==========
 async function cancelarCorrida(tipo) {
   if (!currentRide) return;
   
   const motivo = prompt('Motivo do cancelamento:', tipo === 'passageiro' ? 'Mudou de ideia' : 'Problemas no veículo');
   if (!motivo) return;
   
-  const { error } = await supabase
+  await supabase
     .from('corridas')
     .update({
       status: 'cancelado',
@@ -726,19 +734,13 @@ async function cancelarCorrida(tipo) {
     })
     .eq('id', currentRide.id);
   
-  if (error) {
-    showToast('Erro ao cancelar', 'error');
-  } else {
-    showToast(`✅ Corrida cancelada`, 'info');
-    currentRide = null;
-    if (routePolyline) map.removeLayer(routePolyline);
-    if (driverMarker) map.removeLayer(driverMarker);
-    if (realtimeSubscription) realtimeSubscription.unsubscribe();
-    renderScreen();
-  }
+  showToast(`✅ Corrida cancelada`, 'info');
+  currentRide = null;
+  if (routePolyline) map.removeLayer(routePolyline);
+  if (driverMarker) map.removeLayer(driverMarker);
+  renderScreen();
 }
 
-// ========== AÇÕES DO MOTORISTA ==========
 async function motoristaChegou() {
   if (!currentRide) return;
   await supabase.from('corridas').update({ status: 'chegando' }).eq('id', currentRide.id);
@@ -769,7 +771,6 @@ function iniciarGPS() {
     async (pos) => {
       const { latitude, longitude } = pos.coords;
       
-      // Atualizar no Supabase em tempo real
       await supabase.from('usuarios').upsert({
         id: userId,
         tipo: currentUser?.tipo,
@@ -780,47 +781,23 @@ function iniciarGPS() {
         carro: currentUser?.carro
       });
       
-      // Atualizar marcador no mapa
       if (userMarker) {
         userMarker.setLatLng([latitude, longitude]);
       } else {
         const icon = currentUser?.tipo === 'motorista' ? driverIcon : passengerIcon;
         userMarker = L.marker([latitude, longitude], { icon })
           .addTo(map)
-          .bindPopup(currentUser?.tipo === 'motorista' ? '🚗 Você (Motorista)' : '👤 Você (Passageiro)');
+          .bindPopup(currentUser?.tipo === 'motorista' ? '🚗 Você' : '👤 Você');
       }
       
-      // Se for motorista e tiver corrida ativa, atualizar rota em tempo real
+      // Se for motorista e tiver corrida ativa, atualizar rota
       if (currentUser?.tipo === 'motorista' && currentRide && currentRide.status === 'aceito' && currentRide.origem_lat) {
-        await atualizarRotaEmTempoReal(latitude, longitude, currentRide.origem_lat, currentRide.origem_lng);
-      }
-      
-      // Se for passageiro, centralizar no passageiro
-      if (currentUser?.tipo === 'passageiro') {
-        map.setView([latitude, longitude], 15);
+        await atualizarRota(latitude, longitude, currentRide.origem_lat, currentRide.origem_lng);
       }
     },
     (err) => console.error('Erro GPS:', err),
     { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
   );
-}
-
-// ========== ESCUTAR SOLICITAÇÕES (MOTORISTA) ==========
-function escutarSolicitacoes() {
-  console.log('🎧 Motorista escutando novas solicitações...');
-  
-  supabase
-    .channel('solicitacoes')
-    .on('postgres_changes', {
-      event: 'INSERT',
-      schema: 'public',
-      table: 'corridas',
-      filter: `status=eq.solicitado`
-    }, () => {
-      showToast(`📱 Nova solicitação de corrida!`, 'success');
-      renderScreen();
-    })
-    .subscribe();
 }
 
 // ========== RENDERIZAÇÃO ==========
@@ -844,7 +821,8 @@ async function renderScreen() {
       currentUser = { tipo: 'motorista', id: userId, nome: nome || 'Motorista', carro: carro || 'Sedan' };
       await supabase.from('usuarios').upsert({ id: userId, tipo: 'motorista', online: true, nome: currentUser.nome, carro: currentUser.carro });
       iniciarGPS();
-      escutarSolicitacoes();
+      iniciarEscutaSolicitacoes();
+      await carregarSolicitacoes();
       renderScreen();
       showToast('Você está online como motorista!', 'success');
     });
@@ -862,7 +840,7 @@ async function renderScreen() {
   
   // TELA DO MOTORISTA
   if (currentUser.tipo === 'motorista') {
-    // Buscar corrida ativa
+    // Verificar se tem corrida ativa
     const { data: corridaAtiva } = await supabase
       .from('corridas')
       .select('*')
@@ -872,7 +850,6 @@ async function renderScreen() {
     
     if (corridaAtiva) {
       currentRide = corridaAtiva;
-      escutarCorridaMotorista();
     }
     
     if (currentRide && ['aceito', 'chegando', 'emCurso'].includes(currentRide.status)) {
@@ -907,61 +884,29 @@ async function renderScreen() {
       document.getElementById('offlineBtn')?.addEventListener('click', async () => {
         if (watchId) navigator.geolocation.clearWatch(watchId);
         await supabase.from('usuarios').update({ online: false }).eq('id', userId);
+        if (solicicoesChannel) solicicoesChannel.unsubscribe();
         currentUser = null;
         renderScreen();
       });
       return;
     }
     
-    // Listar solicitações
-    const { data: solicitacoes } = await supabase
-      .from('corridas')
-      .select('*')
-      .eq('status', 'solicitado')
-      .order('criado_em', { ascending: false });
-    
+    // Tela de solicitações
     content.innerHTML = `
       <div class="header"><div class="logo">GoMove</div><div class="user-badge">🟢 Online - ${currentUser.nome}</div></div>
       <div class="card">
-        <div style="text-align: center; padding: 10px;"><i class="fas fa-car" style="font-size: 48px; color: #667eea;"></i><h3>Solicitações</h3></div>
+        <div style="text-align: center; padding: 10px;"><i class="fas fa-car" style="font-size: 48px; color: #667eea;"></i><h3>Solicitações em Tempo Real</h3></div>
         <div id="solicitacoesList"></div>
         <button class="btn-secondary" id="offlineBtn">Sair</button>
       </div>
     `;
     
-    const listaDiv = document.getElementById('solicitacoesList');
-    if (solicitacoes && solicitacoes.length > 0) {
-      listaDiv.innerHTML = solicitacoes.map(ride => `
-        <div class="solicitacao-card">
-          <div><strong>${ride.tipo}</strong> - R$ ${ride.preco}</div>
-          <div style="font-size: 0.85rem; margin-top: 8px;">📍 Destino: ${ride.destino}</div>
-          <div class="button-group">
-            <button class="btn-accept" data-id="${ride.id}">✅ Aceitar</button>
-            <button class="btn-reject" data-id="${ride.id}">❌ Recusar</button>
-          </div>
-        </div>
-      `).join('');
-      
-      document.querySelectorAll('.btn-accept').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const ride = solicitacoes.find(r => r.id === btn.dataset.id);
-          if (ride) await aceitarCorrida(ride);
-        });
-      });
-      
-      document.querySelectorAll('.btn-reject').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const ride = solicitacoes.find(r => r.id === btn.dataset.id);
-          if (ride) await recusarCorrida(ride);
-        });
-      });
-    } else {
-      listaDiv.innerHTML = '<div style="text-align: center; padding: 20px;">📱 Nenhuma solicitação no momento</div>';
-    }
+    await carregarSolicitacoes();
     
     document.getElementById('offlineBtn')?.addEventListener('click', async () => {
       if (watchId) navigator.geolocation.clearWatch(watchId);
       await supabase.from('usuarios').update({ online: false }).eq('id', userId);
+      if (solicicoesChannel) solicicoesChannel.unsubscribe();
       currentUser = null;
       renderScreen();
     });
@@ -983,7 +928,7 @@ async function renderScreen() {
       currentRide = corridaAtiva;
       
       if (currentRide.status === 'aceito' && currentRide.motorista_id) {
-        escutarCorridaPassageiro();
+        iniciarEscutaCorridaPassageiro();
       }
     }
     
@@ -1021,7 +966,8 @@ async function renderScreen() {
         await supabase.from('usuarios').update({ online: false }).eq('id', userId);
         currentUser = null;
         currentRide = null;
-        if (realtimeSubscription) realtimeSubscription.unsubscribe();
+        if (corridaChannel) corridaChannel.unsubscribe();
+        if (rastreamentoChannel) rastreamentoChannel.unsubscribe();
         renderScreen();
       });
       return;
@@ -1051,7 +997,7 @@ async function renderScreen() {
       </div>
     `;
     
-    let selectedRide = 'econômico';
+    let selectedRide = 'economico';
     document.querySelectorAll('.ride-option').forEach(opt => {
       opt.addEventListener('click', function() {
         document.querySelectorAll('.ride-option').forEach(o => o.classList.remove('selected'));
