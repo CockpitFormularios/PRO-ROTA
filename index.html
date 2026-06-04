@@ -194,11 +194,6 @@ body {
   color: white;
 }
 
-.btn-warning {
-  background: #f59e0b;
-  color: white;
-}
-
 .driver-info {
   display: flex;
   align-items: center;
@@ -247,36 +242,6 @@ body {
 .status-badge.aceito { background: #dbeafe; color: #2563eb; }
 .status-badge.chegando { background: #fed7aa; color: #c2410c; }
 .status-badge.emCurso { background: #d1fae5; color: #059669; }
-
-.notification {
-  position: fixed;
-  top: 20px;
-  left: 20px;
-  right: 20px;
-  background: white;
-  border-radius: 16px;
-  padding: 16px;
-  z-index: 2000;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-  animation: slideDown 0.3s ease;
-  border-left: 4px solid;
-  cursor: pointer;
-}
-
-.notification.info { border-left-color: #3b82f6; }
-.notification.success { border-left-color: #10b981; }
-.notification.warning { border-left-color: #f59e0b; }
-.notification.error { border-left-color: #ef4444; }
-
-.notification-title {
-  font-weight: 600;
-  margin-bottom: 4px;
-}
-
-.notification-message {
-  font-size: 0.85rem;
-  color: #64748b;
-}
 
 .toast {
   position: fixed;
@@ -350,10 +315,6 @@ body {
   text-align: center;
 }
 
-.modal-content h3 {
-  margin-bottom: 16px;
-}
-
 .modal-content select, .modal-content textarea {
   width: 100%;
   padding: 12px;
@@ -363,26 +324,6 @@ body {
   font-family: 'Inter', sans-serif;
 }
 
-.modal-content textarea {
-  resize: vertical;
-  min-height: 80px;
-}
-
-.modal-content button {
-  width: 100%;
-  margin-top: 12px;
-  padding: 12px;
-  border-radius: 12px;
-  border: none;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-@keyframes slideDown {
-  from { transform: translateY(-100px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-
 @keyframes slideUp {
   from { transform: translateY(100px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
@@ -390,7 +331,6 @@ body {
 
 @media (min-width: 768px) {
   .bottom-sheet { left: auto; right: 20px; bottom: 20px; width: 400px; border-radius: 28px; }
-  .notification { left: auto; right: 20px; max-width: 400px; }
 }
 </style>
 </head>
@@ -425,41 +365,34 @@ let map = null;
 let userMarker = null;
 let driverMarker = null;
 let routePolyline = null;
-let subscription = null;
+let subscriptionMotorista = null;
+let subscriptionPassageiro = null;
 let driverInterval = null;
-let rideSubscription = null;
+let passengerInterval = null;
 
 const userId = localStorage.getItem('gomove_user_id') || crypto.randomUUID();
 localStorage.setItem('gomove_user_id', userId);
 
 const RIDE_TYPES = {
-  econômico: { name: 'Econômico', icon: '🚗', multiplier: 1, basePrice: 5 },
-  comfort: { name: 'Comfort', icon: '🚙', multiplier: 1.5, basePrice: 7.5 },
-  black: { name: 'Black', icon: '🖤', multiplier: 2, basePrice: 10 }
+  econômico: { name: 'Econômico', icon: '🚗', basePrice: 5 },
+  comfort: { name: 'Comfort', icon: '🚙', basePrice: 7.5 },
+  black: { name: 'Black', icon: '🖤', basePrice: 10 }
 };
 
-// ========== CRIAÇÃO AUTOMÁTICA DAS TABELAS ==========
+// ========== CRIAÇÃO DAS TABELAS ==========
 async function setupDatabase() {
-  console.log('📦 Verificando/Criando tabelas no Supabase...');
-  
   try {
-    const { error } = await supabase.query(`
+    await supabase.query(`
       CREATE TABLE IF NOT EXISTS usuarios (
         id TEXT PRIMARY KEY,
-        tipo TEXT CHECK (tipo IN ('motorista', 'passageiro')),
+        tipo TEXT,
         nome TEXT,
         latitude FLOAT,
         longitude FLOAT,
         online BOOLEAN DEFAULT false,
         carro TEXT,
-        placa TEXT,
-        avaliacao FLOAT DEFAULT 5.0,
-        criado_em TIMESTAMP DEFAULT NOW(),
-        atualizado_em TIMESTAMP DEFAULT NOW()
+        criado_em TIMESTAMP DEFAULT NOW()
       );
-      
-      CREATE INDEX IF NOT EXISTS idx_usuarios_online ON usuarios(online);
-      CREATE INDEX IF NOT EXISTS idx_usuarios_tipo ON usuarios(tipo);
       
       CREATE TABLE IF NOT EXISTS corridas (
         id TEXT PRIMARY KEY,
@@ -468,39 +401,20 @@ async function setupDatabase() {
         passageiro_nome TEXT,
         motorista_nome TEXT,
         motorista_carro TEXT,
-        origem TEXT NOT NULL,
+        origem TEXT,
         origem_lat FLOAT,
         origem_lng FLOAT,
-        destino TEXT NOT NULL,
-        tipo TEXT CHECK (tipo IN ('econômico', 'comfort', 'black')),
-        status TEXT CHECK (status IN ('solicitado', 'aceito', 'chegando', 'emCurso', 'finalizado', 'cancelado', 'recusado')),
+        destino TEXT,
+        tipo TEXT,
+        status TEXT,
         preco DECIMAL(10,2),
         criado_em TIMESTAMP DEFAULT NOW(),
         aceito_em TIMESTAMP,
-        chegando_em TIMESTAMP,
-        iniciado_em TIMESTAMP,
-        finalizado_em TIMESTAMP,
-        cancelado_em TIMESTAMP,
         cancelado_por TEXT,
-        motivo_cancelamento TEXT,
-        cancelado_por_nome TEXT
-      );
-      
-      CREATE INDEX IF NOT EXISTS idx_corridas_status ON corridas(status);
-      CREATE INDEX IF NOT EXISTS idx_corridas_passageiro ON corridas(passageiro_id);
-      CREATE INDEX IF NOT EXISTS idx_corridas_motorista ON corridas(motorista_id);
-      
-      CREATE TABLE IF NOT EXISTS notificacoes (
-        id SERIAL PRIMARY KEY,
-        usuario_id TEXT,
-        titulo TEXT,
-        mensagem TEXT,
-        tipo TEXT,
-        lida BOOLEAN DEFAULT false,
-        criado_em TIMESTAMP DEFAULT NOW()
+        motivo_cancelamento TEXT
       );
     `);
-    console.log('✅ Banco de dados configurado');
+    console.log('✅ Banco configurado');
   } catch (e) {
     console.log('Tabelas já existem');
   }
@@ -510,7 +424,6 @@ async function setupDatabase() {
 function initMap() {
   map = L.map('map').setView([-23.5505, -46.6333], 14);
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
     maxZoom: 19
   }).addTo(map);
 }
@@ -530,92 +443,135 @@ const passengerIcon = L.divIcon({
 function showToast(msg, type = 'info') {
   const toast = document.createElement('div');
   toast.className = 'toast';
-  toast.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i> ${msg}`;
+  toast.innerHTML = msg;
   toast.style.background = type === 'error' ? '#ef4444' : type === 'success' ? '#10b981' : '#1e293b';
   document.body.appendChild(toast);
   setTimeout(() => toast.remove(), 3000);
 }
 
-function showNotification(title, message, type = 'info') {
-  const notification = document.createElement('div');
-  notification.className = `notification ${type}`;
-  notification.innerHTML = `
-    <div class="notification-title">${title}</div>
-    <div class="notification-message">${message}</div>
-  `;
-  document.body.appendChild(notification);
-  
-  setTimeout(() => {
-    notification.style.animation = 'slideUp 0.3s ease';
-    setTimeout(() => notification.remove(), 300);
-  }, 5000);
-  
-  notification.onclick = () => notification.remove();
-}
-
-// ========== FUNÇÕES DE CANCELAMENTO COM SINCRONIA ==========
-function showCancelModal(tipo, rideId) {
-  const modal = document.createElement('div');
-  modal.className = 'modal';
-  modal.innerHTML = `
-    <div class="modal-content">
-      <h3>${tipo === 'passageiro' ? 'Cancelar Corrida' : 'Cancelar Corrida'}</h3>
-      <p style="margin-bottom: 16px; color: #64748b;">Tem certeza que deseja cancelar?</p>
-      <select id="motivoSelect">
-        <option value="Mudou de ideia">Mudou de ideia</option>
-        <option value="Tempo de espera muito longo">Tempo de espera muito longo</option>
-        <option value="Encontrei outro transporte">Encontrei outro transporte</option>
-        <option value="Motorista não se moveu">Motorista não se moveu</option>
-        <option value="Preço muito alto">Preço muito alto</option>
-        <option value="Outro motivo">Outro motivo</option>
-      </select>
-      <textarea id="detalhesMotivo" placeholder="Detalhe o motivo (opcional)..." rows="3"></textarea>
-      <button id="confirmCancelBtn" style="background: #ef4444; color: white;">Confirmar Cancelamento</button>
-      <button id="closeModalBtn" style="background: #e2e8f0; color: #475569;">Voltar</button>
-    </div>
-  `;
-  document.body.appendChild(modal);
-  
-  document.getElementById('confirmCancelBtn').onclick = async () => {
-    const motivo = document.getElementById('motivoSelect').value;
-    const detalhes = document.getElementById('detalhesMotivo').value;
-    const motivoCompleto = detalhes ? `${motivo} - ${detalhes}` : motivo;
-    await cancelarCorridaComMotivo(rideId, tipo, motivoCompleto);
-    modal.remove();
-  };
-  
-  document.getElementById('closeModalBtn').onclick = () => modal.remove();
-}
-
-async function cancelarCorridaComMotivo(rideId, canceladoPor, motivo) {
-  const nomeCancelador = currentUser?.nome || (canceladoPor === 'passageiro' ? 'Passageiro' : 'Motorista');
-  
-  const { error } = await supabase
-    .from('corridas')
-    .update({
-      status: 'cancelado',
-      cancelado_em: new Date().toISOString(),
-      cancelado_por: canceladoPor,
-      cancelado_por_nome: nomeCancelador,
-      motivo_cancelamento: motivo
-    })
-    .eq('id', rideId);
-  
-  if (error) {
-    showToast('Erro ao cancelar corrida', 'error');
-  } else {
-    const mensagem = `${nomeCancelador} cancelou a corrida. Motivo: ${motivo}`;
-    showToast(`✅ Corrida cancelada`, 'info');
-    showNotification('Corrida Cancelada', mensagem, 'warning');
-    
-    currentRide = null;
-    if (driverInterval) clearInterval(driverInterval);
-    if (routePolyline) map.removeLayer(routePolyline);
-    renderScreen();
+// ========== FUNÇÃO PRINCIPAL: ESCUTAR CORRIDA DO PASSAGEIRO ==========
+async function escutarCorridaPassageiro() {
+  if (subscriptionPassageiro) {
+    subscriptionPassageiro.unsubscribe();
   }
+  
+  console.log('🎧 Passageiro começou a escutar corridas...');
+  
+  subscriptionPassageiro = supabase
+    .channel('corridas_passageiro')
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'corridas',
+      filter: `passageiro_id=eq.${userId}`
+    }, (payload) => {
+      console.log('📢 Passageiro recebeu atualização:', payload);
+      
+      if (payload.new) {
+        currentRide = payload.new;
+        
+        // Atualizar status visual
+        if (currentRide.status === 'aceito' && currentRide.motorista_id) {
+          showToast(`✅ Motorista aceitou sua corrida! Ele está a caminho.`, 'success');
+          // Buscar localização do motorista
+          buscarLocalizacaoMotorista(currentRide.motorista_id);
+        }
+        
+        if (currentRide.status === 'chegando') {
+          showToast(`🚗 Motorista chegou ao local!`, 'success');
+        }
+        
+        if (currentRide.status === 'emCurso') {
+          showToast(`🚗 Corrida em andamento!`, 'success');
+        }
+        
+        if (currentRide.status === 'cancelado') {
+          showToast(`❌ Corrida cancelada: ${currentRide.motivo_cancelamento}`, 'error');
+          currentRide = null;
+          if (driverMarker) {
+            map.removeLayer(driverMarker);
+            driverMarker = null;
+          }
+        }
+        
+        if (currentRide.status === 'recusado') {
+          showToast(`❌ Motorista recusou sua corrida`, 'warning');
+          currentRide = null;
+        }
+        
+        renderScreen();
+      }
+    })
+    .subscribe();
 }
 
-// ========== FUNÇÕES PRINCIPAIS ==========
+// ========== FUNÇÃO: BUSCAR LOCALIZAÇÃO DO MOTORISTA ==========
+async function buscarLocalizacaoMotorista(motoristaId) {
+  if (passengerInterval) clearInterval(passengerInterval);
+  
+  passengerInterval = setInterval(async () => {
+    const { data } = await supabase
+      .from('usuarios')
+      .select('latitude, longitude, nome, carro')
+      .eq('id', motoristaId)
+      .single();
+    
+    if (data && data.latitude && data.longitude) {
+      console.log('📍 Localização do motorista:', data.latitude, data.longitude);
+      
+      if (driverMarker) {
+        driverMarker.setLatLng([data.latitude, data.longitude]);
+      } else {
+        driverMarker = L.marker([data.latitude, data.longitude], { icon: driverIcon })
+          .addTo(map)
+          .bindPopup(`🚗 ${data.nome || 'Motorista'} - ${data.carro || 'Veículo'}`);
+      }
+      
+      // Centralizar no motorista se estiver a caminho
+      if (currentRide && currentRide.status === 'aceito') {
+        map.setView([data.latitude, data.longitude], 14);
+      }
+    }
+  }, 2000);
+}
+
+// ========== FUNÇÃO: ESCUTAR CORRIDA DO MOTORISTA ==========
+async function escutarCorridaMotorista() {
+  if (subscriptionMotorista) {
+    subscriptionMotorista.unsubscribe();
+  }
+  
+  console.log('🎧 Motorista começou a escutar corridas...');
+  
+  subscriptionMotorista = supabase
+    .channel('corridas_motorista')
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'corridas',
+      filter: `motorista_id=eq.${userId}`
+    }, (payload) => {
+      console.log('📢 Motorista recebeu atualização:', payload);
+      
+      if (payload.new) {
+        currentRide = payload.new;
+        
+        if (currentRide.status === 'cancelado') {
+          showToast(`❌ Corrida cancelada pelo passageiro: ${currentRide.motivo_cancelamento}`, 'error');
+          currentRide = null;
+          if (routePolyline) {
+            map.removeLayer(routePolyline);
+            routePolyline = null;
+          }
+        }
+        
+        renderScreen();
+      }
+    })
+    .subscribe();
+}
+
+// ========== SOLICITAR CORRIDA ==========
 async function solicitarCorrida(origem, destino, tipo) {
   if (!currentUser || currentUser.tipo !== 'passageiro') {
     showToast('Você precisa estar como passageiro', 'error');
@@ -659,88 +615,18 @@ async function solicitarCorrida(origem, destino, tipo) {
   
   currentRide = novaCorrida;
   showToast(`✅ Corrida solicitada! R$ ${preco}`, 'success');
-  showNotification('Corrida Solicitada', `Aguardando motorista aceitar. Destino: ${destino}`, 'info');
+  
+  // Iniciar escuta para atualizações
+  await escutarCorridaPassageiro();
+  
   renderScreen();
-  aguardarAceiteMotorista(novaCorrida.id);
 }
 
-function aguardarAceiteMotorista(rideId) {
-  if (rideSubscription) rideSubscription.unsubscribe();
-  
-  rideSubscription = supabase
-    .channel(`ride_${rideId}`)
-    .on('postgres_changes', {
-      event: 'UPDATE',
-      schema: 'public',
-      table: 'corridas',
-      filter: `id=eq.${rideId}`
-    }, async (payload) => {
-      const updatedRide = payload.new;
-      currentRide = updatedRide;
-      
-      if (updatedRide.status === 'aceito' && updatedRide.motorista_id) {
-        showNotification('✅ Corrida Aceita!', `O motorista está a caminho para buscá-lo.`, 'success');
-        showToast(`🚗 Motorista aceitou!`, 'success');
-        
-        const { data: motorista } = await supabase
-          .from('usuarios')
-          .select('*')
-          .eq('id', updatedRide.motorista_id)
-          .single();
-        
-        if (motorista) {
-          currentRide.motorista_nome = motorista.nome;
-          currentRide.motorista_carro = motorista.carro;
-          iniciarRastreamentoMotorista(motorista);
-        }
-        renderScreen();
-      }
-      
-      if (updatedRide.status === 'recusado') {
-        showNotification('❌ Corrida Recusada', `O motorista recusou sua corrida. Procure outro motorista.`, 'warning');
-        showToast(`Motorista recusou`, 'warning');
-        currentRide = null;
-        renderScreen();
-      }
-      
-      if (updatedRide.status === 'cancelado') {
-        const mensagem = updatedRide.motivo_cancelamento || 'Sem motivo';
-        showNotification('🚫 Corrida Cancelada', `${updatedRide.cancelado_por_nome || 'Alguém'} cancelou: ${mensagem}`, 'error');
-        showToast(`Corrida cancelada: ${mensagem}`, 'error');
-        currentRide = null;
-        renderScreen();
-      }
-      
-      if (updatedRide.status === 'chegando') {
-        showNotification('🚗 Motorista Chegou!', 'O motorista chegou ao seu local. Saia para encontrá-lo.', 'success');
-        showToast(`Motorista chegou ao local!`, 'success');
-        renderScreen();
-      }
-    })
-    .subscribe();
-}
-
-function escutarSolicitacoes() {
-  if (subscription) subscription.unsubscribe();
-  
-  subscription = supabase
-    .channel('solicitacoes')
-    .on('postgres_changes', {
-      event: 'INSERT',
-      schema: 'public',
-      table: 'corridas',
-      filter: `status=eq.solicitado`
-    }, (payload) => {
-      const novaCorrida = payload.new;
-      showNotification('📱 Nova Solicitação!', `Destino: ${novaCorrida.destino} - R$ ${novaCorrida.preco}`, 'info');
-      showToast(`📱 Nova solicitação de corrida!`, 'success');
-      renderScreen();
-    })
-    .subscribe();
-}
-
+// ========== ACEITAR CORRIDA ==========
 async function aceitarCorrida(ride) {
   if (!currentUser || currentUser.tipo !== 'motorista') return;
+  
+  console.log('🚗 Motorista aceitando corrida:', ride.id);
   
   const { error } = await supabase
     .from('corridas')
@@ -748,25 +634,32 @@ async function aceitarCorrida(ride) {
       status: 'aceito',
       motorista_id: userId,
       motorista_nome: currentUser.nome || 'Motorista',
+      motorista_carro: currentUser.carro || 'Veículo',
       aceito_em: new Date().toISOString()
     })
     .eq('id', ride.id);
   
   if (error) {
     showToast('Erro ao aceitar corrida', 'error');
+    console.error(error);
   } else {
     currentRide = { ...ride, status: 'aceito', motorista_id: userId };
-    showNotification('✅ Corrida Aceita!', `Você aceitou a corrida para ${ride.destino}. Vá buscar o passageiro.`, 'success');
-    showToast(`✅ Corrida aceita!`, 'success');
-    renderScreen();
+    showToast(`✅ Corrida aceita! Vá buscar o passageiro.`, 'success');
     
+    // Iniciar escuta para atualizações
+    await escutarCorridaMotorista();
+    
+    // Traçar rota até o passageiro
     if (ride.origem_lat && ride.origem_lng && userMarker) {
       const motoristaPos = userMarker.getLatLng();
       tracarRota(motoristaPos.lat, motoristaPos.lng, ride.origem_lat, ride.origem_lng);
     }
+    
+    renderScreen();
   }
 }
 
+// ========== RECUSAR CORRIDA ==========
 async function recusarCorrida(ride) {
   if (!currentUser || currentUser.tipo !== 'motorista') return;
   
@@ -774,9 +667,7 @@ async function recusarCorrida(ride) {
     .from('corridas')
     .update({
       status: 'recusado',
-      cancelado_em: new Date().toISOString(),
       cancelado_por: 'motorista',
-      cancelado_por_nome: currentUser.nome || 'Motorista',
       motivo_cancelamento: 'Motorista recusou a corrida'
     })
     .eq('id', ride.id);
@@ -784,22 +675,71 @@ async function recusarCorrida(ride) {
   if (error) {
     showToast('Erro ao recusar corrida', 'error');
   } else {
-    showNotification('❌ Corrida Recusada', `Você recusou a corrida para ${ride.destino}.`, 'warning');
     showToast(`❌ Corrida recusada`, 'info');
     renderScreen();
   }
 }
 
-async function cancelarCorridaMotorista() {
-  if (!currentRide) return;
-  showCancelModal('motorista', currentRide.id);
-}
-
+// ========== CANCELAR CORRIDA (PASSAGEIRO) ==========
 async function cancelarCorridaPassageiro() {
   if (!currentRide) return;
-  showCancelModal('passageiro', currentRide.id);
+  
+  const motivo = prompt('Motivo do cancelamento:', 'Mudou de ideia');
+  if (!motivo) return;
+  
+  const { error } = await supabase
+    .from('corridas')
+    .update({
+      status: 'cancelado',
+      cancelado_por: 'passageiro',
+      motivo_cancelamento: motivo
+    })
+    .eq('id', currentRide.id);
+  
+  if (error) {
+    showToast('Erro ao cancelar', 'error');
+  } else {
+    showToast(`✅ Corrida cancelada`, 'info');
+    currentRide = null;
+    if (driverMarker) {
+      map.removeLayer(driverMarker);
+      driverMarker = null;
+    }
+    if (passengerInterval) clearInterval(passengerInterval);
+    renderScreen();
+  }
 }
 
+// ========== CANCELAR CORRIDA (MOTORISTA) ==========
+async function cancelarCorridaMotorista() {
+  if (!currentRide) return;
+  
+  const motivo = prompt('Motivo do cancelamento:', 'Problemas no veículo');
+  if (!motivo) return;
+  
+  const { error } = await supabase
+    .from('corridas')
+    .update({
+      status: 'cancelado',
+      cancelado_por: 'motorista',
+      motivo_cancelamento: motivo
+    })
+    .eq('id', currentRide.id);
+  
+  if (error) {
+    showToast('Erro ao cancelar', 'error');
+  } else {
+    showToast(`✅ Corrida cancelada`, 'info');
+    currentRide = null;
+    if (routePolyline) {
+      map.removeLayer(routePolyline);
+      routePolyline = null;
+    }
+    renderScreen();
+  }
+}
+
+// ========== TRAÇAR ROTA ==========
 async function tracarRota(origemLat, origemLng, destinoLat, destinoLng) {
   const url = `https://router.project-osrm.org/route/v1/driving/${origemLng},${origemLat};${destinoLng},${destinoLat}?overview=full&geometries=geojson`;
   
@@ -820,28 +760,33 @@ async function tracarRota(origemLat, origemLng, destinoLat, destinoLng) {
   }
 }
 
-function iniciarRastreamentoMotorista(motorista) {
-  if (driverInterval) clearInterval(driverInterval);
-  
-  driverInterval = setInterval(async () => {
-    const { data } = await supabase
-      .from('usuarios')
-      .select('latitude, longitude')
-      .eq('id', motorista.id)
-      .single();
-    
-    if (data && data.latitude && data.longitude) {
-      if (driverMarker) {
-        driverMarker.setLatLng([data.latitude, data.longitude]);
-      } else {
-        driverMarker = L.marker([data.latitude, data.longitude], { icon: driverIcon })
-          .addTo(map)
-          .bindPopup('🚗 Motorista');
-      }
-    }
-  }, 2000);
+// ========== AÇÕES DO MOTORISTA ==========
+async function motoristaChegou() {
+  if (!currentRide) return;
+  await supabase.from('corridas').update({ status: 'chegando' }).eq('id', currentRide.id);
+  currentRide.status = 'chegando';
+  showToast('✅ Você chegou ao local!', 'success');
+  renderScreen();
 }
 
+async function iniciarCorrida() {
+  if (!currentRide) return;
+  await supabase.from('corridas').update({ status: 'emCurso' }).eq('id', currentRide.id);
+  currentRide.status = 'emCurso';
+  showToast('🚗 Corrida iniciada!', 'success');
+  renderScreen();
+}
+
+async function finalizarCorrida() {
+  if (!currentRide) return;
+  await supabase.from('corridas').update({ status: 'finalizado' }).eq('id', currentRide.id);
+  showToast(`🏁 Corrida finalizada! R$ ${currentRide.preco}`, 'success');
+  currentRide = null;
+  if (routePolyline) map.removeLayer(routePolyline);
+  renderScreen();
+}
+
+// ========== GPS ==========
 function iniciarGPS() {
   if (watchId) navigator.geolocation.clearWatch(watchId);
   
@@ -852,11 +797,11 @@ function iniciarGPS() {
       await supabase.from('usuarios').upsert({
         id: userId,
         tipo: currentUser?.tipo,
-        nome: currentUser?.nome || (currentUser?.tipo === 'motorista' ? 'Motorista' : 'Passageiro'),
+        nome: currentUser?.nome,
         latitude,
         longitude,
         online: true,
-        atualizado_em: new Date().toISOString()
+        carro: currentUser?.carro
       });
       
       if (userMarker) {
@@ -875,39 +820,29 @@ function iniciarGPS() {
   );
 }
 
-async function motoristaChegou() {
-  if (!currentRide) return;
-  await supabase.from('corridas').update({ status: 'chegando', chegando_em: new Date().toISOString() }).eq('id', currentRide.id);
-  currentRide.status = 'chegando';
-  showNotification('✅ Você chegou!', 'O passageiro foi notificado que você está no local.', 'success');
-  showToast('✅ Você chegou ao local!', 'success');
-  renderScreen();
-}
-
-async function iniciarCorrida() {
-  if (!currentRide) return;
-  await supabase.from('corridas').update({ status: 'emCurso', iniciado_em: new Date().toISOString() }).eq('id', currentRide.id);
-  currentRide.status = 'emCurso';
-  showNotification('🚗 Corrida Iniciada!', 'A corrida começou. Dirija com segurança.', 'success');
-  showToast('🚗 Corrida iniciada!', 'success');
-  renderScreen();
-}
-
-async function finalizarCorrida() {
-  if (!currentRide) return;
-  await supabase.from('corridas').update({ status: 'finalizado', finalizado_em: new Date().toISOString() }).eq('id', currentRide.id);
-  showNotification('🏁 Corrida Finalizada!', `Valor: R$ ${currentRide.preco}. Obrigado por usar GoMove!`, 'success');
-  showToast(`🏁 Corrida finalizada! R$ ${currentRide.preco}`, 'success');
-  currentRide = null;
-  if (driverInterval) clearInterval(driverInterval);
-  if (routePolyline) map.removeLayer(routePolyline);
-  renderScreen();
+// ========== ESCUTAR SOLICITAÇÕES (MOTORISTA) ==========
+function escutarSolicitacoes() {
+  if (subscriptionMotorista) subscriptionMotorista.unsubscribe();
+  
+  subscriptionMotorista = supabase
+    .channel('solicitacoes')
+    .on('postgres_changes', {
+      event: 'INSERT',
+      schema: 'public',
+      table: 'corridas',
+      filter: `status=eq.solicitado`
+    }, () => {
+      showToast(`📱 Nova solicitação de corrida!`, 'success');
+      renderScreen();
+    })
+    .subscribe();
 }
 
 // ========== RENDERIZAÇÃO ==========
 async function renderScreen() {
   const content = document.getElementById('sheetContent');
   
+  // Tela inicial
   if (!currentUser) {
     content.innerHTML = `
       <div class="header">
@@ -918,21 +853,25 @@ async function renderScreen() {
         <button class="btn-secondary" id="becomePassengerBtn"><i class="fas fa-walking"></i> Sou Passageiro</button>
       </div>
     `;
+    
     document.getElementById('becomeDriverBtn')?.addEventListener('click', async () => {
-      currentUser = { tipo: 'motorista', id: userId, nome: 'Motorista' };
-      await supabase.from('usuarios').upsert({ id: userId, tipo: 'motorista', online: true, nome: 'Motorista' });
+      const nome = prompt('Seu nome:', 'Motorista');
+      const carro = prompt('Seu carro:', 'Sedan');
+      currentUser = { tipo: 'motorista', id: userId, nome: nome || 'Motorista', carro: carro || 'Veículo' };
+      await supabase.from('usuarios').upsert({ id: userId, tipo: 'motorista', online: true, nome: currentUser.nome, carro: currentUser.carro });
       iniciarGPS();
       escutarSolicitacoes();
       renderScreen();
-      showNotification('✅ Motorista Online', 'Você está disponível para receber corridas.', 'success');
       showToast('Você está online como motorista!', 'success');
     });
+    
     document.getElementById('becomePassengerBtn')?.addEventListener('click', async () => {
-      currentUser = { tipo: 'passageiro', id: userId, nome: 'Passageiro' };
-      await supabase.from('usuarios').upsert({ id: userId, tipo: 'passageiro', online: true, nome: 'Passageiro' });
+      const nome = prompt('Seu nome:', 'Passageiro');
+      currentUser = { tipo: 'passageiro', id: userId, nome: nome || 'Passageiro' };
+      await supabase.from('usuarios').upsert({ id: userId, tipo: 'passageiro', online: true, nome: currentUser.nome });
       iniciarGPS();
+      await escutarCorridaPassageiro();
       renderScreen();
-      showNotification('✅ Passageiro Online', 'Você pode solicitar corridas agora.', 'success');
       showToast('Você está online como passageiro!', 'success');
     });
     return;
@@ -940,6 +879,7 @@ async function renderScreen() {
   
   // TELA DO MOTORISTA
   if (currentUser.tipo === 'motorista') {
+    // Verificar se tem corrida ativa
     const { data: corridaAtiva } = await supabase
       .from('corridas')
       .select('*')
@@ -947,15 +887,18 @@ async function renderScreen() {
       .in('status', ['aceito', 'chegando', 'emCurso'])
       .maybeSingle();
     
-    if (corridaAtiva) currentRide = corridaAtiva;
+    if (corridaAtiva) {
+      currentRide = corridaAtiva;
+      await escutarCorridaMotorista();
+    }
     
+    // Se está em uma corrida ativa
     if (currentRide && ['aceito', 'chegando', 'emCurso'].includes(currentRide.status)) {
       content.innerHTML = `
         <div class="header"><div class="logo">GoMove</div></div>
         <div class="card">
           <div class="status-badge ${currentRide.status}">
-            <i class="fas ${currentRide.status === 'aceito' ? 'fa-car' : 'fa-road'}"></i>
-            ${currentRide.status === 'aceito' ? 'Indo buscar passageiro' : currentRide.status === 'chegando' ? 'Chegou ao local' : 'Em corrida'}
+            ${currentRide.status === 'aceito' ? '🚗 Indo buscar passageiro' : currentRide.status === 'chegando' ? '📍 Chegou ao local' : '🟢 Em corrida'}
           </div>
           <div class="driver-info">
             <div class="driver-avatar"><i class="fas fa-user"></i></div>
@@ -967,17 +910,17 @@ async function renderScreen() {
           <div class="trip-stats">
             <div class="trip-stat"><div class="trip-stat-label">Preço</div><div class="trip-stat-value">R$ ${currentRide.preco}</div></div>
           </div>
-          ${currentRide.status === 'aceito' ? '<button class="btn-primary" id="chegandoBtn"><i class="fas fa-flag-checkered"></i> Cheguei no local</button>' : ''}
-          ${currentRide.status === 'chegando' ? '<button class="btn-primary" id="iniciarCorridaBtn"><i class="fas fa-play"></i> Iniciar Corrida</button>' : ''}
-          ${currentRide.status === 'emCurso' ? '<button class="btn-primary" id="finalizarCorridaBtn"><i class="fas fa-flag-checkered"></i> Finalizar Corrida</button>' : ''}
-          <button class="btn-danger" id="cancelarCorridaMotoristaBtn"><i class="fas fa-times"></i> Cancelar Corrida</button>
+          ${currentRide.status === 'aceito' ? '<button class="btn-primary" id="chegandoBtn">📍 Cheguei no local</button>' : ''}
+          ${currentRide.status === 'chegando' ? '<button class="btn-primary" id="iniciarCorridaBtn">🚗 Iniciar Corrida</button>' : ''}
+          ${currentRide.status === 'emCurso' ? '<button class="btn-primary" id="finalizarCorridaBtn">🏁 Finalizar Corrida</button>' : ''}
+          <button class="btn-danger" id="cancelarMotoristaBtn">❌ Cancelar Corrida</button>
           <button class="btn-secondary" id="offlineBtn">Sair</button>
         </div>
       `;
       document.getElementById('chegandoBtn')?.addEventListener('click', motoristaChegou);
       document.getElementById('iniciarCorridaBtn')?.addEventListener('click', iniciarCorrida);
       document.getElementById('finalizarCorridaBtn')?.addEventListener('click', finalizarCorrida);
-      document.getElementById('cancelarCorridaMotoristaBtn')?.addEventListener('click', cancelarCorridaMotorista);
+      document.getElementById('cancelarMotoristaBtn')?.addEventListener('click', cancelarCorridaMotorista);
       document.getElementById('offlineBtn')?.addEventListener('click', async () => {
         if (watchId) navigator.geolocation.clearWatch(watchId);
         await supabase.from('usuarios').update({ online: false }).eq('id', userId);
@@ -988,6 +931,7 @@ async function renderScreen() {
       return;
     }
     
+    // Lista de solicitações
     const { data: solicitacoes } = await supabase
       .from('corridas')
       .select('*')
@@ -995,9 +939,9 @@ async function renderScreen() {
       .order('criado_em', { ascending: false });
     
     content.innerHTML = `
-      <div class="header"><div class="logo">GoMove</div><div class="user-badge"><i class="fas fa-circle" style="color: #10b981; font-size: 10px;"></i> Online</div></div>
+      <div class="header"><div class="logo">GoMove</div><div class="user-badge">🟢 Online - ${currentUser.nome}</div></div>
       <div class="card">
-        <div style="text-align: center; padding: 10px;"><i class="fas fa-car" style="font-size: 48px; color: #667eea;"></i><h3>Aguardando solicitações</h3></div>
+        <div style="text-align: center; padding: 10px;"><i class="fas fa-car" style="font-size: 48px; color: #667eea;"></i><h3>Solicitações</h3></div>
         <div id="solicitacoesList"></div>
         <button class="btn-secondary" id="offlineBtn">Sair</button>
       </div>
@@ -1007,37 +951,30 @@ async function renderScreen() {
     if (solicitacoes && solicitacoes.length > 0) {
       listaDiv.innerHTML = solicitacoes.map(ride => `
         <div class="solicitacao-card">
-          <div style="display: flex; justify-content: space-between;">
-            <div><strong>🚗 ${ride.tipo}</strong></div>
-            <div><strong>R$ ${ride.preco}</strong></div>
-          </div>
-          <div style="font-size: 0.85rem; color: #64748b; margin-top: 8px;">
-            <i class="fas fa-map-marker-alt"></i> Destino: ${ride.destino}
-          </div>
+          <div><strong>${ride.tipo}</strong> - R$ ${ride.preco}</div>
+          <div style="font-size: 0.85rem; margin-top: 8px;">📍 Destino: ${ride.destino}</div>
           <div class="button-group">
-            <button class="btn-accept" data-aceitar="${ride.id}">✅ Aceitar</button>
-            <button class="btn-reject" data-recusar="${ride.id}">❌ Recusar</button>
+            <button class="btn-accept" data-id="${ride.id}">✅ Aceitar</button>
+            <button class="btn-reject" data-id="${ride.id}">❌ Recusar</button>
           </div>
         </div>
       `).join('');
       
-      document.querySelectorAll('[data-aceitar]').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-          const rideId = btn.getAttribute('data-aceitar');
-          const ride = solicitacoes.find(r => r.id === rideId);
+      document.querySelectorAll('.btn-accept').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const ride = solicitacoes.find(r => r.id === btn.dataset.id);
           if (ride) await aceitarCorrida(ride);
         });
       });
       
-      document.querySelectorAll('[data-recusar]').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-          const rideId = btn.getAttribute('data-recusar');
-          const ride = solicitacoes.find(r => r.id === rideId);
+      document.querySelectorAll('.btn-reject').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const ride = solicitacoes.find(r => r.id === btn.dataset.id);
           if (ride) await recusarCorrida(ride);
         });
       });
     } else {
-      listaDiv.innerHTML = '<div style="text-align: center; padding: 20px; color: #94a3b8;">📱 Nenhuma solicitação no momento</div>';
+      listaDiv.innerHTML = '<div style="text-align: center; padding: 20px;">📱 Nenhuma solicitação</div>';
     }
     
     document.getElementById('offlineBtn')?.addEventListener('click', async () => {
@@ -1050,6 +987,7 @@ async function renderScreen() {
   
   // TELA DO PASSAGEIRO
   if (currentUser.tipo === 'passageiro') {
+    // Buscar corrida ativa
     const { data: corridaAtiva } = await supabase
       .from('corridas')
       .select('*')
@@ -1061,22 +999,23 @@ async function renderScreen() {
     
     if (corridaAtiva) {
       currentRide = corridaAtiva;
-      if (corridaAtiva.motorista_id && !currentRide.motorista_nome) {
-        const { data: motorista } = await supabase.from('usuarios').select('*').eq('id', corridaAtiva.motorista_id).single();
-        if (motorista) {
-          currentRide.motorista_nome = motorista.nome;
-          iniciarRastreamentoMotorista(motorista);
-        }
+      
+      // Se tem motorista, buscar localização
+      if (currentRide.motorista_id && currentRide.status === 'aceito') {
+        buscarLocalizacaoMotorista(currentRide.motorista_id);
       }
     }
     
+    // Se está em uma corrida
     if (currentRide && ['solicitado', 'aceito', 'chegando', 'emCurso'].includes(currentRide.status)) {
       content.innerHTML = `
-        <div class="header"><div class="logo">GoMove</div><div class="user-badge"><i class="fas fa-user"></i> Passageiro</div></div>
+        <div class="header"><div class="logo">GoMove</div><div class="user-badge">${currentUser.nome}</div></div>
         <div class="card">
           <div class="status-badge ${currentRide.status}">
-            <i class="fas ${currentRide.status === 'solicitado' ? 'fa-clock' : 'fa-car'}"></i>
-            ${currentRide.status === 'solicitado' ? 'Procurando motorista...' : currentRide.status === 'aceito' ? 'Motorista a caminho!' : currentRide.status === 'chegando' ? 'Motorista chegou!' : 'Em corrida'}
+            ${currentRide.status === 'solicitado' ? '⏳ Procurando motorista...' : 
+              currentRide.status === 'aceito' ? '🚗 Motorista a caminho!' : 
+              currentRide.status === 'chegando' ? '📍 Motorista chegou!' : 
+              '🟢 Em corrida'}
           </div>
           ${currentRide.motorista_nome ? `
             <div class="driver-info">
@@ -1091,28 +1030,29 @@ async function renderScreen() {
             <div class="trip-stat"><div class="trip-stat-label">Destino</div><div class="trip-stat-value">${currentRide.destino}</div></div>
             <div class="trip-stat"><div class="trip-stat-label">Preço</div><div class="trip-stat-value">R$ ${currentRide.preco}</div></div>
           </div>
-          <button class="btn-danger" id="cancelarCorridaPassageiroBtn"><i class="fas fa-times"></i> Cancelar Corrida</button>
+          <button class="btn-danger" id="cancelarPassageiroBtn">❌ Cancelar Corrida</button>
           <button class="btn-secondary" id="logoutBtn">Sair</button>
         </div>
       `;
-      document.getElementById('cancelarCorridaPassageiroBtn')?.addEventListener('click', cancelarCorridaPassageiro);
+      document.getElementById('cancelarPassageiroBtn')?.addEventListener('click', cancelarCorridaPassageiro);
       document.getElementById('logoutBtn')?.addEventListener('click', async () => {
         if (watchId) navigator.geolocation.clearWatch(watchId);
         await supabase.from('usuarios').update({ online: false }).eq('id', userId);
         currentUser = null;
         currentRide = null;
+        if (passengerInterval) clearInterval(passengerInterval);
         renderScreen();
       });
       return;
     }
     
+    // Tela de solicitação
     content.innerHTML = `
-      <div class="header"><div class="logo">GoMove</div><div class="user-badge"><i class="fas fa-user"></i> Passageiro</div></div>
+      <div class="header"><div class="logo">GoMove</div><div class="user-badge">${currentUser.nome}</div></div>
       <div class="card">
         <div class="location-input">
           <div class="location-icon"><i class="fas fa-circle-dot"></i></div>
           <div class="location-fields">
-            <div class="location-field"><label>ORIGEM</label><input type="text" id="origemInput" placeholder="Sua localização" value="Minha localização"></div>
             <div class="location-field"><label>DESTINO</label><input type="text" id="destinoInput" placeholder="Para onde você vai?"></div>
           </div>
         </div>
@@ -1142,10 +1082,10 @@ async function renderScreen() {
     
     document.getElementById('solicitarBtn')?.addEventListener('click', () => {
       const destino = document.getElementById('destinoInput').value;
-      const origem = document.getElementById('origemInput').value;
-      if (destino) solicitarCorrida(origem, destino, selectedRide);
+      if (destino) solicitarCorrida('Minha localização', destino, selectedRide);
       else showToast('Digite um destino', 'error');
     });
+    
     document.getElementById('logoutBtn')?.addEventListener('click', async () => {
       if (watchId) navigator.geolocation.clearWatch(watchId);
       await supabase.from('usuarios').update({ online: false }).eq('id', userId);
