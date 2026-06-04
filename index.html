@@ -248,6 +248,36 @@ body {
 .status-badge.chegando { background: #fed7aa; color: #c2410c; }
 .status-badge.emCurso { background: #d1fae5; color: #059669; }
 
+.notification {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  right: 20px;
+  background: white;
+  border-radius: 16px;
+  padding: 16px;
+  z-index: 2000;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  animation: slideDown 0.3s ease;
+  border-left: 4px solid;
+  cursor: pointer;
+}
+
+.notification.info { border-left-color: #3b82f6; }
+.notification.success { border-left-color: #10b981; }
+.notification.warning { border-left-color: #f59e0b; }
+.notification.error { border-left-color: #ef4444; }
+
+.notification-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.notification-message {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
 .toast {
   position: fixed;
   bottom: 100px;
@@ -324,6 +354,20 @@ body {
   margin-bottom: 16px;
 }
 
+.modal-content select, .modal-content textarea {
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  margin-bottom: 12px;
+  font-family: 'Inter', sans-serif;
+}
+
+.modal-content textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
 .modal-content button {
   width: 100%;
   margin-top: 12px;
@@ -334,6 +378,11 @@ body {
   cursor: pointer;
 }
 
+@keyframes slideDown {
+  from { transform: translateY(-100px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
 @keyframes slideUp {
   from { transform: translateY(100px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
@@ -341,6 +390,7 @@ body {
 
 @media (min-width: 768px) {
   .bottom-sheet { left: auto; right: 20px; bottom: 20px; width: 400px; border-radius: 28px; }
+  .notification { left: auto; right: 20px; max-width: 400px; }
 }
 </style>
 </head>
@@ -377,6 +427,7 @@ let driverMarker = null;
 let routePolyline = null;
 let subscription = null;
 let driverInterval = null;
+let rideSubscription = null;
 
 const userId = localStorage.getItem('gomove_user_id') || crypto.randomUUID();
 localStorage.setItem('gomove_user_id', userId);
@@ -431,12 +482,23 @@ async function setupDatabase() {
         finalizado_em TIMESTAMP,
         cancelado_em TIMESTAMP,
         cancelado_por TEXT,
-        motivo_cancelamento TEXT
+        motivo_cancelamento TEXT,
+        cancelado_por_nome TEXT
       );
       
       CREATE INDEX IF NOT EXISTS idx_corridas_status ON corridas(status);
       CREATE INDEX IF NOT EXISTS idx_corridas_passageiro ON corridas(passageiro_id);
       CREATE INDEX IF NOT EXISTS idx_corridas_motorista ON corridas(motorista_id);
+      
+      CREATE TABLE IF NOT EXISTS notificacoes (
+        id SERIAL PRIMARY KEY,
+        usuario_id TEXT,
+        titulo TEXT,
+        mensagem TEXT,
+        tipo TEXT,
+        lida BOOLEAN DEFAULT false,
+        criado_em TIMESTAMP DEFAULT NOW()
+      );
     `);
     console.log('✅ Banco de dados configurado');
   } catch (e) {
@@ -474,7 +536,24 @@ function showToast(msg, type = 'info') {
   setTimeout(() => toast.remove(), 3000);
 }
 
-// ========== FUNÇÕES DE CANCELAMENTO ==========
+function showNotification(title, message, type = 'info') {
+  const notification = document.createElement('div');
+  notification.className = `notification ${type}`;
+  notification.innerHTML = `
+    <div class="notification-title">${title}</div>
+    <div class="notification-message">${message}</div>
+  `;
+  document.body.appendChild(notification);
+  
+  setTimeout(() => {
+    notification.style.animation = 'slideUp 0.3s ease';
+    setTimeout(() => notification.remove(), 300);
+  }, 5000);
+  
+  notification.onclick = () => notification.remove();
+}
+
+// ========== FUNÇÕES DE CANCELAMENTO COM SINCRONIA ==========
 function showCancelModal(tipo, rideId) {
   const modal = document.createElement('div');
   modal.className = 'modal';
@@ -482,13 +561,15 @@ function showCancelModal(tipo, rideId) {
     <div class="modal-content">
       <h3>${tipo === 'passageiro' ? 'Cancelar Corrida' : 'Cancelar Corrida'}</h3>
       <p style="margin-bottom: 16px; color: #64748b;">Tem certeza que deseja cancelar?</p>
-      <select id="motivoSelect" style="width: 100%; padding: 12px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 12px;">
+      <select id="motivoSelect">
         <option value="Mudou de ideia">Mudou de ideia</option>
         <option value="Tempo de espera muito longo">Tempo de espera muito longo</option>
         <option value="Encontrei outro transporte">Encontrei outro transporte</option>
         <option value="Motorista não se moveu">Motorista não se moveu</option>
+        <option value="Preço muito alto">Preço muito alto</option>
         <option value="Outro motivo">Outro motivo</option>
       </select>
+      <textarea id="detalhesMotivo" placeholder="Detalhe o motivo (opcional)..." rows="3"></textarea>
       <button id="confirmCancelBtn" style="background: #ef4444; color: white;">Confirmar Cancelamento</button>
       <button id="closeModalBtn" style="background: #e2e8f0; color: #475569;">Voltar</button>
     </div>
@@ -497,7 +578,9 @@ function showCancelModal(tipo, rideId) {
   
   document.getElementById('confirmCancelBtn').onclick = async () => {
     const motivo = document.getElementById('motivoSelect').value;
-    await cancelarCorridaComMotivo(rideId, tipo, motivo);
+    const detalhes = document.getElementById('detalhesMotivo').value;
+    const motivoCompleto = detalhes ? `${motivo} - ${detalhes}` : motivo;
+    await cancelarCorridaComMotivo(rideId, tipo, motivoCompleto);
     modal.remove();
   };
   
@@ -505,12 +588,15 @@ function showCancelModal(tipo, rideId) {
 }
 
 async function cancelarCorridaComMotivo(rideId, canceladoPor, motivo) {
+  const nomeCancelador = currentUser?.nome || (canceladoPor === 'passageiro' ? 'Passageiro' : 'Motorista');
+  
   const { error } = await supabase
     .from('corridas')
     .update({
       status: 'cancelado',
       cancelado_em: new Date().toISOString(),
       cancelado_por: canceladoPor,
+      cancelado_por_nome: nomeCancelador,
       motivo_cancelamento: motivo
     })
     .eq('id', rideId);
@@ -518,7 +604,10 @@ async function cancelarCorridaComMotivo(rideId, canceladoPor, motivo) {
   if (error) {
     showToast('Erro ao cancelar corrida', 'error');
   } else {
-    showToast(`✅ Corrida cancelada${motivo ? `: ${motivo}` : ''}`, 'info');
+    const mensagem = `${nomeCancelador} cancelou a corrida. Motivo: ${motivo}`;
+    showToast(`✅ Corrida cancelada`, 'info');
+    showNotification('Corrida Cancelada', mensagem, 'warning');
+    
     currentRide = null;
     if (driverInterval) clearInterval(driverInterval);
     if (routePolyline) map.removeLayer(routePolyline);
@@ -570,12 +659,15 @@ async function solicitarCorrida(origem, destino, tipo) {
   
   currentRide = novaCorrida;
   showToast(`✅ Corrida solicitada! R$ ${preco}`, 'success');
+  showNotification('Corrida Solicitada', `Aguardando motorista aceitar. Destino: ${destino}`, 'info');
   renderScreen();
   aguardarAceiteMotorista(novaCorrida.id);
 }
 
 function aguardarAceiteMotorista(rideId) {
-  const channel = supabase
+  if (rideSubscription) rideSubscription.unsubscribe();
+  
+  rideSubscription = supabase
     .channel(`ride_${rideId}`)
     .on('postgres_changes', {
       event: 'UPDATE',
@@ -583,14 +675,17 @@ function aguardarAceiteMotorista(rideId) {
       table: 'corridas',
       filter: `id=eq.${rideId}`
     }, async (payload) => {
-      currentRide = payload.new;
+      const updatedRide = payload.new;
+      currentRide = updatedRide;
       
-      if (currentRide.status === 'aceito' && currentRide.motorista_id) {
-        showToast(`🚗 Motorista aceitou! Ele está a caminho.`, 'success');
+      if (updatedRide.status === 'aceito' && updatedRide.motorista_id) {
+        showNotification('✅ Corrida Aceita!', `O motorista está a caminho para buscá-lo.`, 'success');
+        showToast(`🚗 Motorista aceitou!`, 'success');
+        
         const { data: motorista } = await supabase
           .from('usuarios')
           .select('*')
-          .eq('id', currentRide.motorista_id)
+          .eq('id', updatedRide.motorista_id)
           .single();
         
         if (motorista) {
@@ -599,21 +694,27 @@ function aguardarAceiteMotorista(rideId) {
           iniciarRastreamentoMotorista(motorista);
         }
         renderScreen();
-        channel.unsubscribe();
       }
       
-      if (currentRide.status === 'recusado') {
-        showToast(`Motorista recusou sua corrida. Procurando outro...`, 'warning');
+      if (updatedRide.status === 'recusado') {
+        showNotification('❌ Corrida Recusada', `O motorista recusou sua corrida. Procure outro motorista.`, 'warning');
+        showToast(`Motorista recusou`, 'warning');
         currentRide = null;
         renderScreen();
-        channel.unsubscribe();
       }
       
-      if (currentRide.status === 'cancelado') {
-        showToast(`Corrida cancelada: ${currentRide.motivo_cancelamento || 'Sem motivo'}`, 'error');
+      if (updatedRide.status === 'cancelado') {
+        const mensagem = updatedRide.motivo_cancelamento || 'Sem motivo';
+        showNotification('🚫 Corrida Cancelada', `${updatedRide.cancelado_por_nome || 'Alguém'} cancelou: ${mensagem}`, 'error');
+        showToast(`Corrida cancelada: ${mensagem}`, 'error');
         currentRide = null;
         renderScreen();
-        channel.unsubscribe();
+      }
+      
+      if (updatedRide.status === 'chegando') {
+        showNotification('🚗 Motorista Chegou!', 'O motorista chegou ao seu local. Saia para encontrá-lo.', 'success');
+        showToast(`Motorista chegou ao local!`, 'success');
+        renderScreen();
       }
     })
     .subscribe();
@@ -629,7 +730,9 @@ function escutarSolicitacoes() {
       schema: 'public',
       table: 'corridas',
       filter: `status=eq.solicitado`
-    }, () => {
+    }, (payload) => {
+      const novaCorrida = payload.new;
+      showNotification('📱 Nova Solicitação!', `Destino: ${novaCorrida.destino} - R$ ${novaCorrida.preco}`, 'info');
       showToast(`📱 Nova solicitação de corrida!`, 'success');
       renderScreen();
     })
@@ -653,7 +756,8 @@ async function aceitarCorrida(ride) {
     showToast('Erro ao aceitar corrida', 'error');
   } else {
     currentRide = { ...ride, status: 'aceito', motorista_id: userId };
-    showToast(`✅ Corrida aceita! Vá buscar o passageiro.`, 'success');
+    showNotification('✅ Corrida Aceita!', `Você aceitou a corrida para ${ride.destino}. Vá buscar o passageiro.`, 'success');
+    showToast(`✅ Corrida aceita!`, 'success');
     renderScreen();
     
     if (ride.origem_lat && ride.origem_lng && userMarker) {
@@ -672,6 +776,7 @@ async function recusarCorrida(ride) {
       status: 'recusado',
       cancelado_em: new Date().toISOString(),
       cancelado_por: 'motorista',
+      cancelado_por_nome: currentUser.nome || 'Motorista',
       motivo_cancelamento: 'Motorista recusou a corrida'
     })
     .eq('id', ride.id);
@@ -679,6 +784,7 @@ async function recusarCorrida(ride) {
   if (error) {
     showToast('Erro ao recusar corrida', 'error');
   } else {
+    showNotification('❌ Corrida Recusada', `Você recusou a corrida para ${ride.destino}.`, 'warning');
     showToast(`❌ Corrida recusada`, 'info');
     renderScreen();
   }
@@ -773,7 +879,8 @@ async function motoristaChegou() {
   if (!currentRide) return;
   await supabase.from('corridas').update({ status: 'chegando', chegando_em: new Date().toISOString() }).eq('id', currentRide.id);
   currentRide.status = 'chegando';
-  showToast('✅ Você chegou ao local do passageiro!', 'success');
+  showNotification('✅ Você chegou!', 'O passageiro foi notificado que você está no local.', 'success');
+  showToast('✅ Você chegou ao local!', 'success');
   renderScreen();
 }
 
@@ -781,6 +888,7 @@ async function iniciarCorrida() {
   if (!currentRide) return;
   await supabase.from('corridas').update({ status: 'emCurso', iniciado_em: new Date().toISOString() }).eq('id', currentRide.id);
   currentRide.status = 'emCurso';
+  showNotification('🚗 Corrida Iniciada!', 'A corrida começou. Dirija com segurança.', 'success');
   showToast('🚗 Corrida iniciada!', 'success');
   renderScreen();
 }
@@ -788,7 +896,8 @@ async function iniciarCorrida() {
 async function finalizarCorrida() {
   if (!currentRide) return;
   await supabase.from('corridas').update({ status: 'finalizado', finalizado_em: new Date().toISOString() }).eq('id', currentRide.id);
-  showToast(`🏁 Corrida finalizada! Valor: R$ ${currentRide.preco}`, 'success');
+  showNotification('🏁 Corrida Finalizada!', `Valor: R$ ${currentRide.preco}. Obrigado por usar GoMove!`, 'success');
+  showToast(`🏁 Corrida finalizada! R$ ${currentRide.preco}`, 'success');
   currentRide = null;
   if (driverInterval) clearInterval(driverInterval);
   if (routePolyline) map.removeLayer(routePolyline);
@@ -815,6 +924,7 @@ async function renderScreen() {
       iniciarGPS();
       escutarSolicitacoes();
       renderScreen();
+      showNotification('✅ Motorista Online', 'Você está disponível para receber corridas.', 'success');
       showToast('Você está online como motorista!', 'success');
     });
     document.getElementById('becomePassengerBtn')?.addEventListener('click', async () => {
@@ -822,6 +932,7 @@ async function renderScreen() {
       await supabase.from('usuarios').upsert({ id: userId, tipo: 'passageiro', online: true, nome: 'Passageiro' });
       iniciarGPS();
       renderScreen();
+      showNotification('✅ Passageiro Online', 'Você pode solicitar corridas agora.', 'success');
       showToast('Você está online como passageiro!', 'success');
     });
     return;
