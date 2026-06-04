@@ -274,7 +274,7 @@ function iniciarRastreamentoMotorista(motoristaId, passageiroLat, passageiroLng)
   driverInterval = setInterval(buscarLocalizacao, 3000);
 }
 
-// ========== POLLING SIMPLES ==========
+// ========== POLLING ==========
 function iniciarPolling() {
   if (pollingInterval) clearInterval(pollingInterval);
   
@@ -405,7 +405,7 @@ function iniciarPolling() {
   }, 2000);
 }
 
-// ========== FUNÇÕES PRINCIPAIS ==========
+// ========== FUNÇÕES PRINCIPAIS COM LOGS DETALHADOS ==========
 async function solicitarCorrida(destino, tipo) {
   if (!currentUser || currentUser.tipo !== 'passageiro') {
     showToast('Você precisa estar como passageiro', 'error');
@@ -454,7 +454,9 @@ async function solicitarCorrida(destino, tipo) {
 async function aceitarCorrida(ride) {
   if (!currentUser || currentUser.tipo !== 'motorista') return;
   
-  const { error } = await supabase
+  console.log('Aceitando corrida:', ride.id);
+  
+  const { data, error } = await supabase
     .from('corridas')
     .update({
       status: 'aceito',
@@ -463,12 +465,14 @@ async function aceitarCorrida(ride) {
       motorista_carro: currentUser.carro,
       aceito_em: new Date().toISOString()
     })
-    .eq('id', ride.id);
+    .eq('id', ride.id)
+    .select();
   
   if (error) {
+    console.error('Erro detalhado:', error);
     showToast('Erro ao aceitar corrida: ' + error.message, 'error');
-    console.error(error);
   } else {
+    console.log('Sucesso! Corrida aceita:', data);
     currentRide = { ...ride, status: 'aceito', motorista_id: userId };
     showToast(`✅ Corrida aceita!`, 'success');
     renderScreen();
@@ -507,20 +511,27 @@ async function cancelarCorrida(tipo) {
 
 async function motoristaChegou() {
   if (!currentRide) return;
-  console.log('Motorista chegou no local!');
+  console.log('Motorista chegou no local! Corrida ID:', currentRide.id);
+  console.log('Status atual:', currentRide.status);
   
-  const { error } = await supabase
+  const updateData = { 
+    status: 'chegando', 
+    chegando_em: new Date().toISOString() 
+  };
+  
+  console.log('Enviando update:', updateData);
+  
+  const { data, error } = await supabase
     .from('corridas')
-    .update({ 
-      status: 'chegando', 
-      chegando_em: new Date().toISOString() 
-    })
-    .eq('id', currentRide.id);
+    .update(updateData)
+    .eq('id', currentRide.id)
+    .select();
   
   if (error) {
+    console.error('ERRO DETALHADO:', error);
     showToast('Erro ao atualizar status: ' + error.message, 'error');
-    console.error('Erro detalhado:', error);
   } else {
+    console.log('Update realizado com sucesso:', data);
     showToast('✅ Você chegou ao local!', 'success');
     currentRide.status = 'chegando';
     renderScreen();
@@ -529,20 +540,26 @@ async function motoristaChegou() {
 
 async function iniciarCorrida() {
   if (!currentRide) return;
-  console.log('Iniciando corrida!');
+  console.log('Iniciando corrida! Corrida ID:', currentRide.id);
   
-  const { error } = await supabase
+  const updateData = { 
+    status: 'emCurso', 
+    iniciado_em: new Date().toISOString() 
+  };
+  
+  console.log('Enviando update:', updateData);
+  
+  const { data, error } = await supabase
     .from('corridas')
-    .update({ 
-      status: 'emCurso', 
-      iniciado_em: new Date().toISOString() 
-    })
-    .eq('id', currentRide.id);
+    .update(updateData)
+    .eq('id', currentRide.id)
+    .select();
   
   if (error) {
+    console.error('ERRO DETALHADO:', error);
     showToast('Erro ao iniciar corrida: ' + error.message, 'error');
-    console.error('Erro detalhado:', error);
   } else {
+    console.log('Update realizado com sucesso:', data);
     showToast('🚗 Corrida iniciada!', 'success');
     currentRide.status = 'emCurso';
     renderScreen();
@@ -551,22 +568,28 @@ async function iniciarCorrida() {
 
 async function finalizarCorrida() {
   if (!currentRide) return;
-  console.log('Finalizando corrida!');
+  console.log('Finalizando corrida! Corrida ID:', currentRide.id);
   const preco = currentRide.preco;
   const destino = currentRide.destino;
   
-  const { error } = await supabase
+  const updateData = {
+    status: 'finalizado',
+    finalizado_em: new Date().toISOString()
+  };
+  
+  console.log('Enviando update:', updateData);
+  
+  const { data, error } = await supabase
     .from('corridas')
-    .update({
-      status: 'finalizado',
-      finalizado_em: new Date().toISOString()
-    })
-    .eq('id', currentRide.id);
+    .update(updateData)
+    .eq('id', currentRide.id)
+    .select();
   
   if (error) {
+    console.error('ERRO DETALHADO:', error);
     showToast('Erro ao finalizar corrida: ' + error.message, 'error');
-    console.error('Erro detalhado:', error);
   } else {
+    console.log('Update realizado com sucesso:', data);
     showToast(`🏁 Corrida finalizada! R$ ${preco}`, 'success');
     showRideCompletedModal(preco, destino);
     currentRide = null;
