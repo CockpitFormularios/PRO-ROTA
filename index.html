@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>GoMove - Ultra Rápido (50ms)</title>
+<title>GoMove - Transporte Inteligente</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -87,30 +87,10 @@ body { font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; }
   margin: 12px 0;
   font-weight: 600;
   color: #4338ca;
-  transition: all 0.1s ease;
 }
 
 .ride-option { flex:1; text-align:center; padding:12px; border:2px solid #e2e8f0; border-radius:16px; cursor:pointer; transition: all 0.2s; }
 .ride-option.selected { border-color: #667eea; background: #f0f0ff; }
-
-.tempo-real-badge {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  background: rgba(0,0,0,0.7);
-  color: #10b981;
-  padding: 4px 8px;
-  border-radius: 8px;
-  font-size: 10px;
-  font-weight: bold;
-  z-index: 1000;
-  animation: pulse 1s infinite;
-}
-@keyframes pulse {
-  0% { opacity: 0.7; }
-  50% { opacity: 1; }
-  100% { opacity: 0.7; }
-}
 
 .modal-finalizacao {
   position: fixed;
@@ -136,6 +116,17 @@ body { font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; }
 .modal-finalizacao-content i { font-size: 64px; color: #10b981; margin-bottom: 16px; }
 .modal-finalizacao-content h2 { font-size: 24px; margin-bottom: 8px; }
 
+.status-online {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #d1fae5;
+  color: #059669;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+}
+
 @media (min-width: 768px) {
   .bottom-sheet { left: auto; right: 20px; bottom: 20px; width: 400px; border-radius: 28px; }
 }
@@ -144,9 +135,6 @@ body { font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; }
 <body>
 
 <div id="map"></div>
-<div class="tempo-real-badge" id="tempoRealBadge">
-  <i class="fas fa-bolt"></i> Atualização: 50ms
-</div>
 
 <div class="bottom-sheet collapsed" id="bottomSheet">
   <div class="sheet-handle" id="sheetHandle"></div>
@@ -171,18 +159,12 @@ let userMarker = null;
 let driverMarker = null;
 let routePolyline = null;
 let driverInterval = null;
-let ultraFastInterval = null;
-let lastUpdateTime = 0;
+let pollingInterval = null;
+let lastRideData = null;
+let lastSolicitacoesData = null;
 
 const userId = localStorage.getItem('gomove_user_id') || crypto.randomUUID();
 localStorage.setItem('gomove_user_id', userId);
-
-// Contador de atualizações
-let updateCount = 0;
-setInterval(() => {
-  document.getElementById('tempoRealBadge').innerHTML = `<i class="fas fa-bolt"></i> ${updateCount} atualizações/seg`;
-  updateCount = 0;
-}, 1000);
 
 // ========== INICIALIZAR MAPA ==========
 function initMap() {
@@ -230,7 +212,6 @@ function showRideCompletedModal(valor, destino) {
   document.body.appendChild(modal);
   document.getElementById('closeModalBtn')?.addEventListener('click', () => {
     modal.remove();
-    // Limpar marcadores
     if (driverMarker) map.removeLayer(driverMarker);
     if (routePolyline) map.removeLayer(routePolyline);
     driverMarker = null;
@@ -253,44 +234,29 @@ function calcularDistancia(lat1, lng1, lat2, lng2) {
   return `${d.toFixed(1)}km`;
 }
 
-// ========== TRAÇAR ROTA OTIMIZADA ==========
-let lastRouteRequest = 0;
 async function tracarRota(origemLat, origemLng, destinoLat, destinoLng) {
   if (!origemLat || !origemLng || !destinoLat || !destinoLng) return;
-  
-  const now = Date.now();
-  if (now - lastRouteRequest < 200) return;
-  lastRouteRequest = now;
-  
   const url = `https://router.project-osrm.org/route/v1/driving/${origemLng},${origemLat};${destinoLng},${destinoLat}?overview=full&geometries=geojson`;
-  
   try {
     const response = await fetch(url);
     const data = await response.json();
-    
     if (routePolyline) map.removeLayer(routePolyline);
-    
     if (data.routes && data.routes[0]) {
       routePolyline = L.geoJSON(data.routes[0].geometry, {
         style: { color: '#667eea', weight: 5, opacity: 0.8 }
       }).addTo(map);
       map.fitBounds(routePolyline.getBounds());
     }
-  } catch (err) {
-    console.error('Erro ao traçar rota:', err);
-  }
+  } catch (err) { console.error('Erro ao traçar rota:', err); }
 }
 
-// ========== RASTREAMENTO ULTRA RÁPIDO (50ms) ==========
-function iniciarRastreamentoUltraRapido(motoristaId, passageiroLat, passageiroLng) {
+// ========== RASTREAMENTO DO MOTORISTA (2 segundos - suficiente) ==========
+function iniciarRastreamentoMotorista(motoristaId, passageiroLat, passageiroLng) {
   if (driverInterval) clearInterval(driverInterval);
   
-  console.log('⚡ Iniciando rastreamento ULTRA RÁPIDO (50ms):', motoristaId);
+  console.log('📍 Iniciando rastreamento do motorista (2s)...');
   
   const buscarLocalizacao = async () => {
-    updateCount++;
-    const startTime = performance.now();
-    
     const { data: motorista } = await supabase
       .from('usuarios')
       .select('latitude, longitude, nome, carro')
@@ -310,14 +276,18 @@ function iniciarRastreamentoUltraRapido(motoristaId, passageiroLat, passageiroLn
       
       const distancia = calcularDistancia(motorista.latitude, motorista.longitude, passageiroLat, passageiroLng);
       const distanceEl = document.getElementById('distanceInfo');
-      if (distanceEl) {
-        distanceEl.innerHTML = `🚗 Motorista está a ${distancia} de você`;
-      }
+      if (distanceEl) distanceEl.innerHTML = `🚗 Motorista está a ${distancia} de você`;
     }
   };
   
   buscarLocalizacao();
-  driverInterval = setInterval(buscarLocalizacao, 50);
+  driverInterval = setInterval(buscarLocalizacao, 2000); // 2 segundos é suficiente
+}
+
+// ========== VERIFICAR SE HOUVE MUDANÇA REAL ==========
+function hasDataChanged(oldData, newData) {
+  if (!oldData || !newData) return true;
+  return JSON.stringify(oldData) !== JSON.stringify(newData);
 }
 
 // ========== FUNÇÕES PRINCIPAIS ==========
@@ -326,7 +296,6 @@ async function solicitarCorrida(destino, tipo) {
     showToast('Você precisa estar como passageiro', 'error');
     return;
   }
-  
   if (!destino) {
     showToast('Digite um destino', 'error');
     return;
@@ -357,13 +326,13 @@ async function solicitarCorrida(destino, tipo) {
   };
   
   const { error } = await supabase.from('corridas').insert([novaCorrida]);
-  
   if (error) {
-    showToast('Erro ao solicitar corrida: ' + error.message, 'error');
+    showToast('Erro ao solicitar corrida', 'error');
     return;
   }
   
   currentRide = novaCorrida;
+  lastRideData = novaCorrida;
   showToast(`✅ Corrida solicitada! R$ ${preco}`, 'success');
   renderScreen();
 }
@@ -388,6 +357,7 @@ async function aceitarCorrida(ride) {
     showToast('Erro ao aceitar corrida', 'error');
   } else {
     currentRide = { ...ride, status: 'aceito', motorista_id: userId };
+    lastRideData = currentRide;
     showToast(`✅ Corrida aceita!`, 'success');
     renderScreen();
   }
@@ -395,19 +365,13 @@ async function aceitarCorrida(ride) {
 
 async function recusarCorrida(ride) {
   if (!currentUser || currentUser.tipo !== 'motorista') return;
-  
-  await supabase
-    .from('corridas')
-    .update({ status: 'recusado' })
-    .eq('id', ride.id);
-  
+  await supabase.from('corridas').update({ status: 'recusado' }).eq('id', ride.id);
   showToast(`❌ Corrida recusada`, 'info');
   renderScreen();
 }
 
 async function cancelarCorrida(tipo) {
   if (!currentRide) return;
-  
   const motivo = prompt('Motivo do cancelamento:');
   if (!motivo) return;
   
@@ -423,6 +387,7 @@ async function cancelarCorrida(tipo) {
   
   showToast(`✅ Corrida cancelada`, 'info');
   currentRide = null;
+  lastRideData = null;
   if (driverInterval) clearInterval(driverInterval);
   if (driverMarker) map.removeLayer(driverMarker);
   if (routePolyline) map.removeLayer(routePolyline);
@@ -458,28 +423,25 @@ async function finalizarCorrida() {
   
   if (error) {
     showToast('Erro ao finalizar corrida', 'error');
-    console.error(error);
   } else {
     showToast(`🏁 Corrida finalizada! R$ ${preco}`, 'success');
     showRideCompletedModal(preco, destino);
     
     currentRide = null;
+    lastRideData = null;
     if (driverInterval) clearInterval(driverInterval);
     if (driverMarker) map.removeLayer(driverMarker);
     if (routePolyline) map.removeLayer(routePolyline);
-    driverMarker = null;
-    routePolyline = null;
     renderScreen();
   }
 }
 
-// ========== GPS ULTRA RÁPIDO ==========
-function iniciarGPSUltraRapido() {
+// ========== GPS ==========
+function iniciarGPS() {
   if (watchId) navigator.geolocation.clearWatch(watchId);
   
   watchId = navigator.geolocation.watchPosition(
     async (pos) => {
-      updateCount++;
       const { latitude, longitude } = pos.coords;
       
       await supabase.from('usuarios').upsert({
@@ -489,8 +451,7 @@ function iniciarGPSUltraRapido() {
         latitude,
         longitude,
         online: true,
-        carro: currentUser?.carro,
-        atualizado_em: new Date().toISOString()
+        carro: currentUser?.carro
       });
       
       if (userMarker) {
@@ -511,18 +472,68 @@ function iniciarGPSUltraRapido() {
       }
     },
     (err) => console.error('Erro GPS:', err),
-    { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+    { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
   );
 }
 
-// ========== ATUALIZAÇÃO ULTRA RÁPIDA DO DASHBOARD (50ms) ==========
-function iniciarAtualizacaoUltraRapida() {
-  if (ultraFastInterval) clearInterval(ultraFastInterval);
+// ========== POLLING INTELIGENTE (1 segundo - apenas quando necessário) ==========
+function iniciarPollingInteligente() {
+  if (pollingInterval) clearInterval(pollingInterval);
   
-  ultraFastInterval = setInterval(async () => {
+  pollingInterval = setInterval(async () => {
     if (!currentUser) return;
     
-    updateCount++;
+    if (currentUser.tipo === 'passageiro') {
+      // Buscar apenas se houver corrida ativa ou se estava em corrida
+      const { data: corridaAtiva } = await supabase
+        .from('corridas')
+        .select('*')
+        .eq('passageiro_id', userId)
+        .in('status', ['solicitado', 'aceito', 'chegando', 'emCurso', 'finalizado'])
+        .order('criado_em', { ascending: false })
+        .limit(1);
+      
+      if (corridaAtiva && corridaAtiva.length > 0) {
+        const novaCorrida = corridaAtiva[0];
+        
+        // Verificar se houve mudança real
+        if (hasDataChanged(lastRideData, novaCorrida)) {
+          console.log('📢 Mudança detectada no passageiro:', novaCorrida.status);
+          lastRideData = novaCorrida;
+          
+          if (novaCorrida.status === 'finalizado') {
+            showToast(`🏁 Corrida finalizada! R$ ${novaCorrida.preco}`, 'success');
+            showRideCompletedModal(novaCorrida.preco, novaCorrida.destino);
+            currentRide = null;
+            lastRideData = null;
+            if (driverInterval) clearInterval(driverInterval);
+            if (driverMarker) map.removeLayer(driverMarker);
+            if (routePolyline) map.removeLayer(routePolyline);
+            renderScreen();
+          } else {
+            const oldStatus = currentRide?.status;
+            currentRide = novaCorrida;
+            
+            if (novaCorrida.status === 'aceito' && oldStatus !== 'aceito') {
+              showToast(`✅ Motorista aceitou sua corrida!`, 'success');
+              if (novaCorrida.motorista_id && novaCorrida.origem_lat) {
+                iniciarRastreamentoMotorista(novaCorrida.motorista_id, novaCorrida.origem_lat, novaCorrida.origem_lng);
+              }
+            }
+            
+            if (novaCorrida.status === 'chegando' && oldStatus !== 'chegando') {
+              showToast(`📍 Motorista chegou ao local!`, 'success');
+            }
+            
+            if (novaCorrida.status === 'emCurso' && oldStatus !== 'emCurso') {
+              showToast(`🚗 Corrida em andamento!`, 'success');
+            }
+            
+            renderScreen();
+          }
+        }
+      }
+    }
     
     if (currentUser.tipo === 'motorista') {
       // Buscar corrida ativa do motorista
@@ -533,25 +544,25 @@ function iniciarAtualizacaoUltraRapida() {
         .in('status', ['aceito', 'chegando', 'emCurso', 'finalizado'])
         .maybeSingle();
       
-      // Verificar se a corrida foi finalizada pelo passageiro
-      if (corridaAtiva && corridaAtiva.status === 'finalizado' && currentRide && currentRide.status !== 'finalizado') {
-        showToast(`🏁 Corrida finalizada! R$ ${corridaAtiva.preco}`, 'success');
-        showRideCompletedModal(corridaAtiva.preco, corridaAtiva.destino);
-        currentRide = null;
-        if (driverMarker) map.removeLayer(driverMarker);
-        if (routePolyline) map.removeLayer(routePolyline);
-        driverMarker = null;
-        routePolyline = null;
-        renderScreen();
-        return;
+      if (corridaAtiva && hasDataChanged(lastRideData, corridaAtiva)) {
+        console.log('📢 Mudança detectada no motorista:', corridaAtiva.status);
+        lastRideData = corridaAtiva;
+        
+        if (corridaAtiva.status === 'finalizado') {
+          showToast(`🏁 Corrida finalizada!`, 'success');
+          showRideCompletedModal(corridaAtiva.preco, corridaAtiva.destino);
+          currentRide = null;
+          lastRideData = null;
+          if (driverMarker) map.removeLayer(driverMarker);
+          if (routePolyline) map.removeLayer(routePolyline);
+          renderScreen();
+        } else {
+          currentRide = corridaAtiva;
+          renderScreen();
+        }
       }
       
-      if (corridaAtiva && JSON.stringify(corridaAtiva) !== JSON.stringify(currentRide)) {
-        currentRide = corridaAtiva;
-        renderScreen();
-      }
-      
-      // Buscar solicitações pendentes (apenas se não estiver em corrida)
+      // Buscar solicitações apenas se não estiver em corrida
       if (!currentRide || !['aceito', 'chegando', 'emCurso'].includes(currentRide.status)) {
         const { data: solicitacoes } = await supabase
           .from('corridas')
@@ -559,20 +570,22 @@ function iniciarAtualizacaoUltraRapida() {
           .eq('status', 'solicitado')
           .order('criado_em', { ascending: false });
         
-        const listaDiv = document.getElementById('solicitacoesList');
-        if (listaDiv && solicitacoes) {
-          const newHtml = solicitacoes.map(ride => `
-            <div class="solicitacao-card">
-              <div><strong>${ride.tipo === 'economico' ? '🚗 Econômico' : ride.tipo === 'comfort' ? '🚙 Comfort' : '🖤 Black'}</strong> - R$ ${ride.preco}</div>
-              <div>📍 Destino: ${ride.destino}</div>
-              <div class="button-group">
-                <button class="btn-accept" data-id="${ride.id}">✅ Aceitar</button>
-                <button class="btn-reject" data-id="${ride.id}">❌ Recusar</button>
-              </div>
-            </div>
-          `).join('');
+        if (hasDataChanged(lastSolicitacoesData, solicitacoes)) {
+          lastSolicitacoesData = solicitacoes;
           
-          if (listaDiv.innerHTML !== newHtml) {
+          const listaDiv = document.getElementById('solicitacoesList');
+          if (listaDiv && solicitacoes) {
+            const newHtml = solicitacoes.map(ride => `
+              <div class="solicitacao-card">
+                <div><strong>${ride.tipo === 'economico' ? '🚗 Econômico' : ride.tipo === 'comfort' ? '🚙 Comfort' : '🖤 Black'}</strong> - R$ ${ride.preco}</div>
+                <div>📍 Destino: ${ride.destino}</div>
+                <div class="button-group">
+                  <button class="btn-accept" data-id="${ride.id}">✅ Aceitar</button>
+                  <button class="btn-reject" data-id="${ride.id}">❌ Recusar</button>
+                </div>
+              </div>
+            `).join('');
+            
             listaDiv.innerHTML = newHtml;
             document.querySelectorAll('.btn-accept').forEach(btn => {
               btn.addEventListener('click', async () => {
@@ -590,59 +603,7 @@ function iniciarAtualizacaoUltraRapida() {
         }
       }
     }
-    
-    if (currentUser.tipo === 'passageiro') {
-      // Buscar corrida ativa do passageiro (incluindo finalizado)
-      const { data: corridaAtiva } = await supabase
-        .from('corridas')
-        .select('*')
-        .eq('passageiro_id', userId)
-        .in('status', ['solicitado', 'aceito', 'chegando', 'emCurso', 'finalizado'])
-        .order('criado_em', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      
-      // IMPORTANTE: Verificar se a corrida foi finalizada
-      if (corridaAtiva && corridaAtiva.status === 'finalizado') {
-        if (!currentRide || currentRide.status !== 'finalizado') {
-          console.log('📢 Passageiro: Corrida finalizada detectada!');
-          showToast(`🏁 Corrida finalizada! R$ ${corridaAtiva.preco}`, 'success');
-          showRideCompletedModal(corridaAtiva.preco, corridaAtiva.destino);
-          currentRide = null;
-          if (driverInterval) clearInterval(driverInterval);
-          if (driverMarker) map.removeLayer(driverMarker);
-          if (routePolyline) map.removeLayer(routePolyline);
-          driverMarker = null;
-          routePolyline = null;
-          renderScreen();
-          return;
-        }
-      }
-      
-      if (corridaAtiva && JSON.stringify(corridaAtiva) !== JSON.stringify(currentRide)) {
-        const oldStatus = currentRide?.status;
-        currentRide = corridaAtiva;
-        
-        // Verificar se foi aceita
-        if (corridaAtiva.status === 'aceito' && corridaAtiva.motorista_id && corridaAtiva.origem_lat && oldStatus !== 'aceito') {
-          showToast(`✅ Motorista aceitou sua corrida!`, 'success');
-          iniciarRastreamentoUltraRapido(corridaAtiva.motorista_id, corridaAtiva.origem_lat, corridaAtiva.origem_lng);
-        }
-        
-        // Verificar se motorista chegou
-        if (corridaAtiva.status === 'chegando' && oldStatus !== 'chegando') {
-          showToast(`📍 Motorista chegou ao local!`, 'success');
-        }
-        
-        // Verificar se corrida foi iniciada
-        if (corridaAtiva.status === 'emCurso' && oldStatus !== 'emCurso') {
-          showToast(`🚗 Corrida em andamento!`, 'success');
-        }
-        
-        renderScreen();
-      }
-    }
-  }, 50);
+  }, 1000); // 1 segundo é mais que suficiente e evita bugs
 }
 
 // ========== RENDERIZAÇÃO ==========
@@ -651,9 +612,7 @@ async function renderScreen() {
   
   if (!currentUser) {
     content.innerHTML = `
-      <div class="header">
-        <div class="logo">GoMove</div>
-      </div>
+      <div class="header"><div class="logo">GoMove</div></div>
       <div class="card">
         <button class="btn-primary" id="becomeDriverBtn"><i class="fas fa-car"></i> Sou Motorista</button>
         <button class="btn-secondary" id="becomePassengerBtn"><i class="fas fa-walking"></i> Sou Passageiro</button>
@@ -665,30 +624,28 @@ async function renderScreen() {
       const carro = prompt('Seu carro:', 'Sedan Preto');
       currentUser = { tipo: 'motorista', id: userId, nome: nome || 'Motorista', carro: carro || 'Sedan' };
       await supabase.from('usuarios').upsert({ id: userId, tipo: 'motorista', online: true, nome: currentUser.nome, carro: currentUser.carro });
-      iniciarGPSUltraRapido();
-      iniciarAtualizacaoUltraRapida();
+      iniciarGPS();
+      iniciarPollingInteligente();
       renderScreen();
-      showToast('Você está online como motorista! Atualização a cada 50ms', 'success');
+      showToast('Você está online como motorista!', 'success');
     });
     
     document.getElementById('becomePassengerBtn')?.addEventListener('click', async () => {
       const nome = prompt('Seu nome:', 'Passageiro');
       currentUser = { tipo: 'passageiro', id: userId, nome: nome || 'Passageiro' };
       await supabase.from('usuarios').upsert({ id: userId, tipo: 'passageiro', online: true, nome: currentUser.nome });
-      iniciarGPSUltraRapido();
-      iniciarAtualizacaoUltraRapida();
+      iniciarGPS();
+      iniciarPollingInteligente();
       renderScreen();
-      showToast('Você está online como passageiro! Atualização a cada 50ms', 'success');
+      showToast('Você está online como passageiro!', 'success');
     });
     return;
   }
   
-  // ========== TELA DO MOTORISTA ==========
+  // TELA DO MOTORISTA
   if (currentUser.tipo === 'motorista') {
     if (currentRide && ['aceito', 'chegando', 'emCurso'].includes(currentRide.status)) {
-      let statusText = '';
-      let statusClass = '';
-      let actionButton = '';
+      let statusText = '', statusClass = '', actionButton = '';
       
       if (currentRide.status === 'aceito') {
         statusText = '🚗 Indo buscar passageiro';
@@ -711,23 +668,22 @@ async function renderScreen() {
         </div>
         <div class="card">
           <div class="status-badge ${statusClass}">${statusText}</div>
-          <div style="margin-bottom: 12px;">
-            <div><strong>Destino:</strong> ${currentRide.destino}</div>
-            <div><strong>Preço:</strong> R$ ${currentRide.preco}</div>
+          <div><strong>Destino:</strong> ${currentRide.destino}</div>
+          <div><strong>Preço:</strong> R$ ${currentRide.preco}</div>
+          <div style="margin-top: 16px;">
+            ${actionButton}
+            <button class="btn-danger" id="cancelarBtn">❌ Cancelar Corrida</button>
+            <button class="btn-secondary" id="offlineBtn">Sair</button>
           </div>
-          ${actionButton}
-          <button class="btn-danger" id="cancelarBtn">❌ Cancelar Corrida</button>
-          <button class="btn-secondary" id="offlineBtn">Sair</button>
         </div>
       `;
-      
       document.getElementById('chegandoBtn')?.addEventListener('click', motoristaChegou);
       document.getElementById('iniciarCorridaBtn')?.addEventListener('click', iniciarCorrida);
       document.getElementById('finalizarCorridaBtn')?.addEventListener('click', finalizarCorrida);
       document.getElementById('cancelarBtn')?.addEventListener('click', () => cancelarCorrida('motorista'));
       document.getElementById('offlineBtn')?.addEventListener('click', async () => {
         if (watchId) navigator.geolocation.clearWatch(watchId);
-        if (ultraFastInterval) clearInterval(ultraFastInterval);
+        if (pollingInterval) clearInterval(pollingInterval);
         await supabase.from('usuarios').update({ online: false }).eq('id', userId);
         currentUser = null;
         currentRide = null;
@@ -739,13 +695,12 @@ async function renderScreen() {
     content.innerHTML = `
       <div class="header">
         <div class="logo">GoMove</div>
-        <div class="user-badge" style="background: #d1fae5; color: #059669;">🟢 Online (50ms)</div>
+        <div class="status-online"><i class="fas fa-circle"></i> Online</div>
       </div>
       <div class="card">
         <div style="text-align: center; margin-bottom: 16px;">
           <i class="fas fa-car" style="font-size: 48px; color: #667eea;"></i>
-          <h3>Solicitações em Tempo Real</h3>
-          <p style="font-size: 11px; color: #10b981;">⚡ Atualizando a cada 50ms</p>
+          <h3>Solicitações de Corrida</h3>
         </div>
         <div id="solicitacoesList"></div>
         <button class="btn-secondary" id="offlineBtn">Sair</button>
@@ -754,18 +709,17 @@ async function renderScreen() {
     
     document.getElementById('offlineBtn')?.addEventListener('click', async () => {
       if (watchId) navigator.geolocation.clearWatch(watchId);
-      if (ultraFastInterval) clearInterval(ultraFastInterval);
+      if (pollingInterval) clearInterval(pollingInterval);
       await supabase.from('usuarios').update({ online: false }).eq('id', userId);
       currentUser = null;
       renderScreen();
     });
   }
   
-  // ========== TELA DO PASSAGEIRO ==========
+  // TELA DO PASSAGEIRO
   if (currentUser.tipo === 'passageiro') {
     if (currentRide && ['solicitado', 'aceito', 'chegando', 'emCurso'].includes(currentRide.status)) {
-      let statusText = '';
-      let statusClass = '';
+      let statusText = '', statusClass = '';
       
       if (currentRide.status === 'solicitado') {
         statusText = '⏳ Procurando motorista...';
@@ -790,9 +744,7 @@ async function renderScreen() {
           <div class="status-badge ${statusClass}">${statusText}</div>
           ${currentRide.motorista_nome ? `
             <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
-              <div style="width: 50px; height: 50px; background: #667eea; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white;">
-                <i class="fas fa-user"></i>
-              </div>
+              <div style="width: 50px; height: 50px; background: #667eea; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white;"><i class="fas fa-user"></i></div>
               <div>
                 <div style="font-weight: 600;">${currentRide.motorista_nome}</div>
                 <div style="font-size: 0.8rem; color: #64748b;">${currentRide.motorista_carro || 'Veículo'}</div>
@@ -808,11 +760,10 @@ async function renderScreen() {
           </div>
         </div>
       `;
-      
       document.getElementById('cancelarBtn')?.addEventListener('click', () => cancelarCorrida('passageiro'));
       document.getElementById('logoutBtn')?.addEventListener('click', async () => {
         if (watchId) navigator.geolocation.clearWatch(watchId);
-        if (ultraFastInterval) clearInterval(ultraFastInterval);
+        if (pollingInterval) clearInterval(pollingInterval);
         if (driverInterval) clearInterval(driverInterval);
         await supabase.from('usuarios').update({ online: false }).eq('id', userId);
         currentUser = null;
@@ -829,8 +780,8 @@ async function renderScreen() {
       </div>
       <div class="card">
         <div style="margin-bottom: 16px;">
-          <div style="margin-bottom: 8px;"><i class="fas fa-map-marker-alt"></i> <strong>DESTINO</strong></div>
-          <input type="text" id="destinoInput" placeholder="Para onde você vai?" style="width:100%; padding:12px; border:1px solid #e2e8f0; border-radius:12px; font-size:1rem;">
+          <label style="font-size: 0.75rem; color: #94a3b8;">DESTINO</label>
+          <input type="text" id="destinoInput" placeholder="Para onde você vai?" style="width:100%; padding:14px; border:1px solid #e2e8f0; border-radius:12px; font-size:1rem; margin-top: 4px;">
         </div>
         <div class="ride-options" style="display: flex; gap: 10px; margin-bottom: 16px;">
           <div class="ride-option" data-ride="economico">🚗<br><strong>Econômico</strong><br>R$5</div>
@@ -860,7 +811,7 @@ async function renderScreen() {
     
     document.getElementById('logoutBtn')?.addEventListener('click', async () => {
       if (watchId) navigator.geolocation.clearWatch(watchId);
-      if (ultraFastInterval) clearInterval(ultraFastInterval);
+      if (pollingInterval) clearInterval(pollingInterval);
       await supabase.from('usuarios').update({ online: false }).eq('id', userId);
       currentUser = null;
       renderScreen();
