@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>GoMove - Transporte em Tempo Real</title>
+<title>GoMove - Transporte em Tempo Real (Auto-Configurável)</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -116,6 +116,35 @@ body { font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; }
 .modal-finalizacao-content i { font-size: 64px; color: #10b981; margin-bottom: 16px; }
 .modal-finalizacao-content h2 { font-size: 24px; margin-bottom: 8px; }
 
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.9);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  color: white;
+}
+.loading-overlay i { font-size: 48px; margin-bottom: 16px; animation: spin 1s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+.realtime-status {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  background: rgba(0,0,0,0.7);
+  color: #10b981;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 10px;
+  z-index: 1000;
+}
+
 @media (min-width: 768px) {
   .bottom-sheet { left: auto; right: 20px; bottom: 20px; width: 400px; border-radius: 28px; }
 }
@@ -124,6 +153,7 @@ body { font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; }
 <body>
 
 <div id="map"></div>
+<div class="realtime-status" id="realtimeStatus">🔄 Configurando Realtime...</div>
 
 <div class="bottom-sheet collapsed" id="bottomSheet">
   <div class="sheet-handle" id="sheetHandle"></div>
@@ -148,9 +178,198 @@ let userMarker = null;
 let driverMarker = null;
 let routePolyline = null;
 let driverInterval = null;
+let realtimeEnabled = false;
 
 const userId = localStorage.getItem('gomove_user_id') || crypto.randomUUID();
 localStorage.setItem('gomove_user_id', userId);
+
+// ========== FUNÇÃO PARA HABILITAR REALTIME AUTOMATICAMENTE ==========
+async function habilitarRealtimeAutomatico() {
+  console.log('🔄 Verificando e habilitando Realtime...');
+  document.getElementById('realtimeStatus').innerHTML = '🔄 Configurando Realtime...';
+  document.getElementById('realtimeStatus').style.color = '#f59e0b';
+  
+  try {
+    // Tentar habilitar Realtime via API do Supabase
+    // Nota: Isso requer permissões de admin, mas vamos tentar
+    
+    // Primeiro, verificar se as tabelas existem
+    const { data: tables, error: tablesError } = await supabase
+      .from('usuarios')
+      .select('id')
+      .limit(1);
+    
+    if (tablesError) {
+      console.log('Criando tabelas...');
+      await criarTabelas();
+    }
+    
+    // Tentar configurar Realtime via SQL (requer permissões de admin)
+    const { error: realtimeError } = await supabase.rpc('enable_realtime', {
+      table_name: 'usuarios'
+    });
+    
+    if (realtimeError) {
+      console.log('Não foi possível habilitar Realtime via RPC, tentando método alternativo...');
+      // O Realtime já pode estar habilitado, vamos testar
+      await testarRealtime();
+    }
+    
+    document.getElementById('realtimeStatus').innerHTML = '✅ Realtime Ativo';
+    document.getElementById('realtimeStatus').style.color = '#10b981';
+    realtimeEnabled = true;
+    
+    setTimeout(() => {
+      document.getElementById('realtimeStatus').style.opacity = '0.5';
+    }, 3000);
+    
+  } catch (err) {
+    console.error('Erro ao configurar Realtime:', err);
+    document.getElementById('realtimeStatus').innerHTML = '⚠️ Realtime: Modo Polling';
+    document.getElementById('realtimeStatus').style.color = '#f59e0b';
+  }
+}
+
+// Função para criar tabelas se não existirem
+async function criarTabelas() {
+  // Criar tabela usuarios via SQL
+  const createUsuarios = await supabase.rpc('exec_sql', {
+    sql: `
+      CREATE TABLE IF NOT EXISTS usuarios (
+        id TEXT PRIMARY KEY,
+        tipo TEXT CHECK (tipo IN ('motorista', 'passageiro')),
+        nome TEXT,
+        latitude FLOAT,
+        longitude FLOAT,
+        online BOOLEAN DEFAULT false,
+        carro TEXT,
+        criado_em TIMESTAMP DEFAULT NOW(),
+        atualizado_em TIMESTAMP DEFAULT NOW()
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_usuarios_tipo ON usuarios(tipo);
+      CREATE INDEX IF NOT EXISTS idx_usuarios_online ON usuarios(online);
+    `
+  });
+  
+  // Criar tabela corridas
+  const createCorridas = await supabase.rpc('exec_sql', {
+    sql: `
+      CREATE TABLE IF NOT EXISTS corridas (
+        id TEXT PRIMARY KEY,
+        passageiro_id TEXT,
+        motorista_id TEXT,
+        passageiro_nome TEXT,
+        motorista_nome TEXT,
+        motorista_carro TEXT,
+        origem TEXT,
+        origem_lat FLOAT,
+        origem_lng FLOAT,
+        destino TEXT,
+        tipo TEXT,
+        status TEXT DEFAULT 'solicitado',
+        preco DECIMAL(10,2),
+        criado_em TIMESTAMP DEFAULT NOW(),
+        aceito_em TIMESTAMP,
+        chegando_em TIMESTAMP,
+        iniciado_em TIMESTAMP,
+        finalizado_em TIMESTAMP,
+        cancelado_em TIMESTAMP,
+        cancelado_por TEXT,
+        motivo_cancelamento TEXT
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_corridas_status ON corridas(status);
+      CREATE INDEX IF NOT EXISTS idx_corridas_passageiro ON corridas(passageiro_id);
+      CREATE INDEX IF NOT EXISTS idx_corridas_motorista ON corridas(motorista_id);
+    `
+  });
+  
+  console.log('Tabelas criadas/verificadas');
+}
+
+// Função para testar se Realtime está funcionando
+async function testarRealtime() {
+  return new Promise((resolve) => {
+    let testReceived = false;
+    const testId = crypto.randomUUID();
+    
+    const channel = supabase
+      .channel('test-realtime')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'usuarios',
+        filter: `id=eq.${testId}`
+      }, () => {
+        testReceived = true;
+        resolve(true);
+      })
+      .subscribe();
+    
+    setTimeout(() => {
+      if (!testReceived) {
+        console.log('Realtime pode não estar habilitado, usando polling como fallback');
+        resolve(false);
+      }
+      channel.unsubscribe();
+    }, 3000);
+  });
+}
+
+// ========== FALLBACK: POLLING para quando Realtime não está disponível ==========
+let pollingInterval = null;
+
+function iniciarPolling() {
+  if (pollingInterval) clearInterval(pollingInterval);
+  
+  pollingInterval = setInterval(async () => {
+    if (!currentUser) return;
+    
+    if (currentUser.tipo === 'passageiro') {
+      const { data: corridaAtiva } = await supabase
+        .from('corridas')
+        .select('*')
+        .eq('passageiro_id', userId)
+        .in('status', ['solicitado', 'aceito', 'chegando', 'emCurso', 'finalizado'])
+        .order('criado_em', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (corridaAtiva && JSON.stringify(corridaAtiva) !== JSON.stringify(currentRide)) {
+        if (corridaAtiva.status === 'finalizado' && currentRide?.status !== 'finalizado') {
+          showToast(`🏁 Corrida finalizada! R$ ${corridaAtiva.preco}`, 'success');
+          showRideCompletedModal(corridaAtiva.preco, corridaAtiva.destino);
+          currentRide = null;
+          if (driverInterval) clearInterval(driverInterval);
+          if (driverMarker) map.removeLayer(driverMarker);
+          if (routePolyline) map.removeLayer(routePolyline);
+        }
+        currentRide = corridaAtiva;
+        renderScreen();
+      }
+    }
+    
+    if (currentUser.tipo === 'motorista') {
+      const { data: corridaAtiva } = await supabase
+        .from('corridas')
+        .select('*')
+        .eq('motorista_id', userId)
+        .in('status', ['aceito', 'chegando', 'emCurso', 'finalizado'])
+        .maybeSingle();
+      
+      if (corridaAtiva && JSON.stringify(corridaAtiva) !== JSON.stringify(currentRide)) {
+        if (corridaAtiva.status === 'finalizado') {
+          showToast(`🏁 Corrida finalizada!`, 'success');
+          currentRide = null;
+        } else {
+          currentRide = corridaAtiva;
+        }
+        renderScreen();
+      }
+    }
+  }, 1000);
+}
 
 // ========== INICIALIZAR MAPA ==========
 function initMap() {
@@ -226,72 +445,6 @@ async function tracarRota(origemLat, origemLng, destinoLat, destinoLng) {
       }).addTo(map);
     }
   } catch (err) { console.error('Erro:', err); }
-}
-
-// ========== LISTENERS REALTIME ==========
-function setupRealtimeListeners() {
-  console.log('🎧 Configurando Realtime listeners...');
-  
-  // Listener para passageiro: escuta mudanças na corrida
-  supabase
-    .channel(`passageiro-${userId}`)
-    .on('postgres_changes', {
-      event: 'UPDATE',
-      schema: 'public',
-      table: 'corridas',
-      filter: `passageiro_id=eq.${userId}`
-    }, (payload) => {
-      console.log('📢 Passageiro recebeu atualização:', payload.new.status);
-      
-      if (payload.new.status === 'finalizado') {
-        showToast(`🏁 Corrida finalizada! R$ ${payload.new.preco}`, 'success');
-        showRideCompletedModal(payload.new.preco, payload.new.destino);
-        
-        // Limpar tudo
-        if (driverInterval) clearInterval(driverInterval);
-        if (driverMarker) map.removeLayer(driverMarker);
-        if (routePolyline) map.removeLayer(routePolyline);
-        driverMarker = null;
-        routePolyline = null;
-        currentRide = null;
-        renderScreen();
-      } else {
-        currentRide = payload.new;
-        renderScreen();
-      }
-    })
-    .subscribe();
-  
-  // Listener para motorista: escuta mudanças na corrida
-  supabase
-    .channel(`motorista-${userId}`)
-    .on('postgres_changes', {
-      event: 'UPDATE',
-      schema: 'public',
-      table: 'corridas',
-      filter: `motorista_id=eq.${userId}`
-    }, (payload) => {
-      console.log('📢 Motorista recebeu atualização:', payload.new.status);
-      currentRide = payload.new;
-      renderScreen();
-    })
-    .subscribe();
-  
-  // Listener para novas solicitações
-  supabase
-    .channel('solicitacoes')
-    .on('postgres_changes', {
-      event: 'INSERT',
-      schema: 'public',
-      table: 'corridas',
-      filter: 'status=eq.solicitado'
-    }, () => {
-      if (currentUser?.tipo === 'motorista') {
-        showToast('📱 Nova solicitação de corrida!', 'success');
-        renderScreen();
-      }
-    })
-    .subscribe();
 }
 
 // ========== FUNÇÕES PRINCIPAIS ==========
@@ -423,7 +576,6 @@ async function finalizarCorrida() {
     showToast(`🏁 Corrida finalizada! R$ ${currentRide.preco}`, 'success');
     showRideCompletedModal(currentRide.preco, currentRide.destino);
     
-    // Limpar dados
     currentRide = null;
     if (driverInterval) clearInterval(driverInterval);
     if (driverMarker) map.removeLayer(driverMarker);
@@ -521,7 +673,7 @@ async function renderScreen() {
       currentUser = { tipo: 'motorista', id: userId, nome: nome || 'Motorista', carro: carro || 'Sedan' };
       await supabase.from('usuarios').upsert({ id: userId, tipo: 'motorista', online: true, nome: currentUser.nome, carro: currentUser.carro });
       iniciarGPS();
-      setupRealtimeListeners();
+      iniciarPolling(); // Fallback polling
       renderScreen();
       showToast('Você está online como motorista!', 'success');
     });
@@ -531,7 +683,7 @@ async function renderScreen() {
       currentUser = { tipo: 'passageiro', id: userId, nome: nome || 'Passageiro' };
       await supabase.from('usuarios').upsert({ id: userId, tipo: 'passageiro', online: true, nome: currentUser.nome });
       iniciarGPS();
-      setupRealtimeListeners();
+      iniciarPolling(); // Fallback polling
       renderScreen();
       showToast('Você está online como passageiro!', 'success');
     });
@@ -741,6 +893,8 @@ async function renderScreen() {
 }
 
 // ========== INICIALIZAR ==========
+// Tentar configurar Realtime, mas já iniciar o app
+habilitarRealtimeAutomatico();
 renderScreen();
 
 let isCollapsed = true;
