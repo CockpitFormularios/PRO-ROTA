@@ -1,11 +1,10 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-<title>Rastreamento GPS</title>
+<title>Mini App Tipo 99</title>
 
 <link rel="stylesheet"
 href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -16,7 +15,7 @@ html,body{
 margin:0;
 padding:0;
 height:100%;
-font-family:Arial;
+font-family:Arial,sans-serif;
 }
 
 #map{
@@ -28,37 +27,47 @@ height:100vh;
 position:absolute;
 top:10px;
 left:10px;
-z-index:1000;
-background:white;
-padding:10px;
+z-index:9999;
+background:#fff;
+padding:15px;
 border-radius:10px;
 box-shadow:0 0 10px rgba(0,0,0,.3);
-max-width:300px;
+max-width:220px;
 }
 
 button{
-padding:10px;
-margin-top:5px;
 width:100%;
+padding:12px;
+margin-top:8px;
+cursor:pointer;
+font-size:16px;
+}
+
+#status{
+margin-top:10px;
+font-size:14px;
 }
 
 </style>
-
 </head>
 
 <body>
 
 <div id="painel">
 
-<h3>Rastreamento</h3>
+<h3>Meu App</h3>
+
+<button id="motorista">
+🚗 Sou Motorista
+</button>
+
+<button id="passageiro">
+🚶 Sou Passageiro
+</button>
 
 <div id="status">
-Aguardando GPS...
+Escolha uma opção
 </div>
-
-<button id="iniciar">
-Iniciar Rastreamento
-</button>
 
 </div>
 
@@ -73,85 +82,79 @@ from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
 const supabase = createClient(
 'https://fqbxhkcdefwsuefifygk.supabase.co',
-'SUA_CHAVE_PUBLICAVEL'
+'sb_publishable_jC8Ntyx8QD2FHkP8Bqa63A_sLljd1Fj'
 );
 
-/*
-COLE O ID DO MOTORISTA
-QUE VOCÊ CRIOU NO SUPABASE
-*/
-const MOTORISTA_ID =
-'COLE_O_ID_AQUI';
+let tipoUsuario = null;
 
-const status =
-document.getElementById('status');
+let meuID = localStorage.getItem('usuario_id');
 
-const map =
-L.map('map')
+if(!meuID){
+
+meuID = crypto.randomUUID();
+
+localStorage.setItem(
+'usuario_id',
+meuID
+);
+
+}
+
+const map = L.map('map')
 .setView([-14.235,-51.925],4);
 
 L.tileLayer(
 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
 {
-maxZoom:19
+maxZoom:19,
+attribution:'OpenStreetMap'
 }
 ).addTo(map);
 
+const status =
+document.getElementById('status');
+
 const marcadores = {};
 
-async function atualizarMotoristas(){
+const carroIcon = L.icon({
+iconUrl:
+'https://cdn-icons-png.flaticon.com/512/744/744465.png',
+iconSize:[40,40]
+});
 
-const { data,error } =
-await supabase
-.from('motoristas')
-.select('*');
+const passageiroIcon = L.icon({
+iconUrl:
+'https://cdn-icons-png.flaticon.com/512/64/64113.png',
+iconSize:[35,35]
+});
 
-if(error){
-console.log(error);
-return;
-}
+document
+.getElementById('motorista')
+.addEventListener('click',()=>{
 
-data.forEach(m=>{
+tipoUsuario='motorista';
 
-const pos = [
-m.latitude,
-m.longitude
-];
+status.innerHTML =
+'🚗 Motorista ativo';
 
-if(marcadores[m.id]){
-
-marcadores[m.id]
-.setLatLng(pos);
-
-}else{
-
-marcadores[m.id] =
-L.marker(pos)
-.addTo(map)
-.bindPopup(m.nome);
-
-}
+iniciarGPS();
 
 });
 
-}
-
-async function enviarLocalizacao(lat,lng){
-
-await supabase
-.from('motoristas')
-.update({
-latitude:lat,
-longitude:lng,
-atualizado_em:new Date()
-})
-.eq('id',MOTORISTA_ID);
-
-}
-
 document
-.getElementById('iniciar')
-.onclick = ()=>{
+.getElementById('passageiro')
+.addEventListener('click',()=>{
+
+tipoUsuario='passageiro';
+
+status.innerHTML =
+'🚶 Passageiro ativo';
+
+iniciarGPS();
+
+});
+
+function iniciarGPS(){
 
 navigator.geolocation.watchPosition(
 
@@ -165,21 +168,43 @@ pos.coords.longitude;
 
 status.innerHTML =
 `
-Latitude: ${lat}<br>
-Longitude: ${lng}
+Tipo: ${tipoUsuario}<br>
+Lat: ${lat.toFixed(6)}<br>
+Lng: ${lng.toFixed(6)}
 `;
 
-await enviarLocalizacao(
-lat,
-lng
+map.setView(
+[lat,lng],
+16
 );
+
+await supabase
+.from('usuarios')
+.upsert({
+
+id:meuID,
+
+tipo:tipoUsuario,
+
+nome:tipoUsuario,
+
+latitude:lat,
+
+longitude:lng,
+
+atualizado_em:
+new Date()
+
+});
 
 },
 
 (err)=>{
 
-status.innerHTML =
-err.message;
+alert(
+'Erro GPS: '+
+err.message
+);
 
 },
 
@@ -191,14 +216,68 @@ timeout:10000
 
 );
 
-};
+}
 
-setInterval(
-atualizarMotoristas,
-5000
+async function atualizarMapa(){
+
+const { data,error } =
+await supabase
+.from('usuarios')
+.select('*');
+
+if(error){
+
+console.log(error);
+
+return;
+
+}
+
+data.forEach(usuario=>{
+
+const pos = [
+usuario.latitude,
+usuario.longitude
+];
+
+const icone =
+usuario.tipo === 'motorista'
+?
+carroIcon
+:
+passageiroIcon;
+
+if(marcadores[usuario.id]){
+
+marcadores[usuario.id]
+.setLatLng(pos);
+
+}else{
+
+marcadores[usuario.id] =
+L.marker(
+pos,
+{
+icon:icone
+}
+)
+.addTo(map)
+.bindPopup(
+usuario.tipo
 );
 
-atualizarMotoristas();
+}
+
+});
+
+}
+
+setInterval(
+atualizarMapa,
+3000
+);
+
+atualizarMapa();
 
 </script>
 
