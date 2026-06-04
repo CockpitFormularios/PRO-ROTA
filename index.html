@@ -261,12 +261,13 @@ async function tracarRota(origemLat, origemLng, destinoLat, destinoLng) {
       routePolyline = L.geoJSON(data.routes[0].geometry, {
         style: { color: '#667eea', weight: 5, opacity: 0.8 }
       }).addTo(map);
+      map.fitBounds(routePolyline.getBounds());
     }
   } catch (err) { console.error('Erro:', err); }
 }
 
 // ============================================
-// RASTREAMENTO DO MOTORISTA
+// RASTREAMENTO DO MOTORISTA PARA O PASSAGEIRO
 // ============================================
 function iniciarRastreamentoMotorista(motoristaId, passageiroLat, passageiroLng) {
   if (driverInterval) clearInterval(driverInterval);
@@ -279,16 +280,19 @@ function iniciarRastreamentoMotorista(motoristaId, passageiroLat, passageiroLng)
       .single();
     
     if (motorista?.latitude && motorista?.longitude) {
+      // Atualizar marcador do motorista
       if (driverMarker) {
         driverMarker.setLatLng([motorista.latitude, motorista.longitude]);
       } else {
         driverMarker = L.marker([motorista.latitude, motorista.longitude], { icon: driverIcon })
           .addTo(map)
-          .bindPopup(`🚗 ${motorista.nome || 'Motorista'}`);
+          .bindPopup(`🚗 ${motorista.nome || 'Motorista'} - ${motorista.carro || 'Veículo'}`);
       }
       
+      // Traçar rota do motorista até o passageiro
       await tracarRota(motorista.latitude, motorista.longitude, passageiroLat, passageiroLng);
       
+      // Calcular e mostrar distância
       const distancia = calcularDistancia(motorista.latitude, motorista.longitude, passageiroLat, passageiroLng);
       const distanceEl = document.getElementById('distanceInfo');
       if (distanceEl) distanceEl.innerHTML = `🚗 Motorista está a ${distancia} de você`;
@@ -321,12 +325,10 @@ function iniciarPolling() {
         const corrida = corridas[0];
         const statusKey = `${corrida.id}_${corrida.status}`;
         
-        // Só processa se mudou
         if (ultimoStatusProcessado !== statusKey) {
           ultimoStatusProcessado = statusKey;
           console.log('Passageiro - Novo status:', corrida.status);
           
-          // FINALIZADO
           if (corrida.status === 'finalizado') {
             showToast(`🏁 Corrida finalizada! R$ ${corrida.preco}`, 'success');
             mostrarModalFinalizacao(corrida.preco, corrida.destino);
@@ -338,7 +340,6 @@ function iniciarPolling() {
             return;
           }
           
-          // ACEITO
           if (corrida.status === 'aceito') {
             showToast(`✅ Motorista aceitou sua corrida!`, 'success');
             if (corrida.motorista_id && corrida.origem_lat) {
@@ -346,12 +347,10 @@ function iniciarPolling() {
             }
           }
           
-          // CHEGANDO
           if (corrida.status === 'chegando') {
             showToast(`📍 Motorista chegou ao local!`, 'success');
           }
           
-          // EM CURSO
           if (corrida.status === 'emCurso') {
             showToast(`🚗 Corrida em andamento!`, 'success');
           }
@@ -596,7 +595,7 @@ async function finalizarCorrida() {
 }
 
 // ============================================
-// GPS
+// GPS - CENTRALIZA O MAPA NO USUÁRIO
 // ============================================
 function iniciarGPS() {
   if (watchId) navigator.geolocation.clearWatch(watchId);
@@ -605,6 +604,7 @@ function iniciarGPS() {
     async (pos) => {
       const { latitude, longitude } = pos.coords;
       
+      // Atualizar localização no Supabase
       await supabase.from('usuarios').upsert({
         id: userId,
         tipo: currentUser?.tipo,
@@ -615,21 +615,26 @@ function iniciarGPS() {
         carro: currentUser?.carro
       });
       
+      // Atualizar ou criar marcador do usuário
       if (userMarker) {
         userMarker.setLatLng([latitude, longitude]);
       } else {
         const icon = currentUser?.tipo === 'motorista' ? driverIcon : passengerIcon;
         userMarker = L.marker([latitude, longitude], { icon })
           .addTo(map)
-          .bindPopup(currentUser?.tipo === 'motorista' ? '🚗 Você' : '👤 Você');
+          .bindPopup(currentUser?.tipo === 'motorista' ? '🚗 Você (Motorista)' : '👤 Você (Passageiro)');
       }
       
-      if (currentUser?.tipo === 'passageiro') {
-        map.setView([latitude, longitude], 15);
+      // CENTRALIZAR O MAPA NA POSIÇÃO DO USUÁRIO
+      map.setView([latitude, longitude], 15);
+      
+      // Se for motorista e estiver em uma corrida aceita, traçar rota até o passageiro
+      if (currentUser?.tipo === 'motorista' && currentRide && currentRide.status === 'aceito' && currentRide.origem_lat) {
+        await tracarRota(latitude, longitude, currentRide.origem_lat, currentRide.origem_lng);
       }
     },
     (err) => console.error('Erro GPS:', err),
-    { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+    { enableHighAccuracy: true, maximumAge: 3000, timeout: 10000 }
   );
 }
 
