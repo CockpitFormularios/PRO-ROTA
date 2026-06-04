@@ -100,6 +100,7 @@ body { font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; }
   display: flex;
   align-items: center;
   justify-content: center;
+  animation: fadeIn 0.3s ease;
 }
 .modal-finalizacao-content {
   background: white;
@@ -108,9 +109,17 @@ body { font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; }
   text-align: center;
   max-width: 320px;
   width: 90%;
+  animation: bounceIn 0.3s ease;
+}
+@keyframes bounceIn {
+  0% { transform: scale(0.8); opacity: 0; }
+  80% { transform: scale(1.05); }
+  100% { transform: scale(1); opacity: 1; }
 }
 .modal-finalizacao-content i { font-size: 64px; color: #10b981; margin-bottom: 16px; }
-.modal-finalizacao-content h2 { font-size: 24px; margin-bottom: 8px; }
+.modal-finalizacao-content h2 { font-size: 24px; margin-bottom: 8px; color: #1e293b; }
+.modal-finalizacao-content p { color: #64748b; margin-bottom: 8px; }
+.modal-finalizacao-content .valor { font-size: 28px; font-weight: bold; color: #10b981; margin: 16px 0; }
 
 .status-online {
   display: inline-flex;
@@ -190,7 +199,14 @@ function showToast(msg, type = 'info') {
   setTimeout(() => toast.remove(), 3000);
 }
 
+// ========== MODAL CORRIGIDO - FECHA AO CLICAR EM OK ==========
 function showRideCompletedModal(valor, destino) {
+  // Verificar se já existe um modal aberto
+  const existingModal = document.querySelector('.modal-finalizacao');
+  if (existingModal) {
+    existingModal.remove();
+  }
+  
   const modal = document.createElement('div');
   modal.className = 'modal-finalizacao';
   modal.innerHTML = `
@@ -198,19 +214,44 @@ function showRideCompletedModal(valor, destino) {
       <i class="fas fa-check-circle"></i>
       <h2>🏁 Corrida Finalizada!</h2>
       <p>Destino: ${destino}</p>
-      <p style="font-size: 28px; font-weight: bold; color: #10b981;">R$ ${valor}</p>
-      <button class="btn-primary" id="closeModalBtn" style="margin-top: 16px;">OK</button>
+      <div class="valor">R$ ${valor}</div>
+      <p>Agradecemos por usar GoMove!</p>
+      <button class="btn-primary" id="closeModalBtn" style="margin-top: 16px; background: #10b981;">OK</button>
     </div>
   `;
   document.body.appendChild(modal);
-  document.getElementById('closeModalBtn')?.addEventListener('click', () => {
-    modal.remove();
-    if (driverMarker) map.removeLayer(driverMarker);
-    if (routePolyline) map.removeLayer(routePolyline);
-    driverMarker = null;
-    routePolyline = null;
-  });
-  setTimeout(() => modal.remove(), 5000);
+  
+  // Event listener para fechar o modal
+  const closeBtn = document.getElementById('closeModalBtn');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      modal.remove();
+      // Limpar marcadores após fechar o modal
+      if (driverMarker) {
+        map.removeLayer(driverMarker);
+        driverMarker = null;
+      }
+      if (routePolyline) {
+        map.removeLayer(routePolyline);
+        routePolyline = null;
+      }
+    });
+  }
+  
+  // Fechar automaticamente após 6 segundos (fallback)
+  setTimeout(() => {
+    if (modal && modal.parentNode) {
+      modal.remove();
+      if (driverMarker) {
+        map.removeLayer(driverMarker);
+        driverMarker = null;
+      }
+      if (routePolyline) {
+        map.removeLayer(routePolyline);
+        routePolyline = null;
+      }
+    }
+  }, 6000);
 }
 
 function calcularDistancia(lat1, lng1, lat2, lng2) {
@@ -405,7 +446,7 @@ function iniciarPolling() {
   }, 2000);
 }
 
-// ========== FUNÇÕES PRINCIPAIS COM LOGS DETALHADOS ==========
+// ========== FUNÇÕES PRINCIPAIS ==========
 async function solicitarCorrida(destino, tipo) {
   if (!currentUser || currentUser.tipo !== 'passageiro') {
     showToast('Você precisa estar como passageiro', 'error');
@@ -456,7 +497,7 @@ async function aceitarCorrida(ride) {
   
   console.log('Aceitando corrida:', ride.id);
   
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('corridas')
     .update({
       status: 'aceito',
@@ -465,14 +506,12 @@ async function aceitarCorrida(ride) {
       motorista_carro: currentUser.carro,
       aceito_em: new Date().toISOString()
     })
-    .eq('id', ride.id)
-    .select();
+    .eq('id', ride.id);
   
   if (error) {
     console.error('Erro detalhado:', error);
     showToast('Erro ao aceitar corrida: ' + error.message, 'error');
   } else {
-    console.log('Sucesso! Corrida aceita:', data);
     currentRide = { ...ride, status: 'aceito', motorista_id: userId };
     showToast(`✅ Corrida aceita!`, 'success');
     renderScreen();
@@ -512,26 +551,19 @@ async function cancelarCorrida(tipo) {
 async function motoristaChegou() {
   if (!currentRide) return;
   console.log('Motorista chegou no local! Corrida ID:', currentRide.id);
-  console.log('Status atual:', currentRide.status);
   
-  const updateData = { 
-    status: 'chegando', 
-    chegando_em: new Date().toISOString() 
-  };
-  
-  console.log('Enviando update:', updateData);
-  
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('corridas')
-    .update(updateData)
-    .eq('id', currentRide.id)
-    .select();
+    .update({ 
+      status: 'chegando', 
+      chegando_em: new Date().toISOString() 
+    })
+    .eq('id', currentRide.id);
   
   if (error) {
     console.error('ERRO DETALHADO:', error);
     showToast('Erro ao atualizar status: ' + error.message, 'error');
   } else {
-    console.log('Update realizado com sucesso:', data);
     showToast('✅ Você chegou ao local!', 'success');
     currentRide.status = 'chegando';
     renderScreen();
@@ -542,24 +574,18 @@ async function iniciarCorrida() {
   if (!currentRide) return;
   console.log('Iniciando corrida! Corrida ID:', currentRide.id);
   
-  const updateData = { 
-    status: 'emCurso', 
-    iniciado_em: new Date().toISOString() 
-  };
-  
-  console.log('Enviando update:', updateData);
-  
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('corridas')
-    .update(updateData)
-    .eq('id', currentRide.id)
-    .select();
+    .update({ 
+      status: 'emCurso', 
+      iniciado_em: new Date().toISOString() 
+    })
+    .eq('id', currentRide.id);
   
   if (error) {
     console.error('ERRO DETALHADO:', error);
     showToast('Erro ao iniciar corrida: ' + error.message, 'error');
   } else {
-    console.log('Update realizado com sucesso:', data);
     showToast('🚗 Corrida iniciada!', 'success');
     currentRide.status = 'emCurso';
     renderScreen();
@@ -572,24 +598,18 @@ async function finalizarCorrida() {
   const preco = currentRide.preco;
   const destino = currentRide.destino;
   
-  const updateData = {
-    status: 'finalizado',
-    finalizado_em: new Date().toISOString()
-  };
-  
-  console.log('Enviando update:', updateData);
-  
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('corridas')
-    .update(updateData)
-    .eq('id', currentRide.id)
-    .select();
+    .update({
+      status: 'finalizado',
+      finalizado_em: new Date().toISOString()
+    })
+    .eq('id', currentRide.id);
   
   if (error) {
     console.error('ERRO DETALHADO:', error);
     showToast('Erro ao finalizar corrida: ' + error.message, 'error');
   } else {
-    console.log('Update realizado com sucesso:', data);
     showToast(`🏁 Corrida finalizada! R$ ${preco}`, 'success');
     showRideCompletedModal(preco, destino);
     currentRide = null;
