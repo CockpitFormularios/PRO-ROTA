@@ -3,9 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Mini App Corridas - Rastreamento em Tempo Real</title>
+<title>99 Clone - Corridas em Tempo Real</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
 <style>
 * {
@@ -18,6 +19,7 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
   height: 100vh;
   overflow: hidden;
+  background: #000;
 }
 
 #map {
@@ -26,125 +28,194 @@ body {
   z-index: 1;
 }
 
-/* Painel moderno */
-#painel {
+/* Painel estilo 99 */
+.painel-99 {
   position: absolute;
-  top: 20px;
-  left: 20px;
-  right: 20px;
-  max-width: 320px;
+  bottom: 0;
+  left: 0;
+  right: 0;
   z-index: 1000;
-  background: rgba(255, 255, 255, 0.98);
-  backdrop-filter: blur(10px);
-  border-radius: 20px;
-  padding: 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: white;
+  border-radius: 24px 24px 0 0;
+  padding: 20px;
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+  transition: transform 0.3s ease;
 }
 
-h3 {
-  margin: 0 0 12px 0;
-  font-size: 1.3rem;
-  text-align: center;
-  color: #1a1a2e;
-  font-weight: 600;
+.painel-99.minimizado {
+  transform: translateY(calc(100% - 70px));
 }
 
-.btn-group {
+.painel-header {
   display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  cursor: pointer;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.painel-header h3 {
+  font-size: 1.2rem;
+  color: #1f2937;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toggle-btn {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: #6b7280;
+  padding: 5px;
+}
+
+.status-card {
+  background: #f3f4f6;
+  border-radius: 16px;
+  padding: 15px;
+  margin-bottom: 15px;
+}
+
+.status-online {
+  display: flex;
+  align-items: center;
   gap: 10px;
   margin-bottom: 10px;
+  padding: 8px;
+  background: #ecfdf5;
+  border-radius: 12px;
+  color: #059669;
 }
 
-button {
+.status-offline {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.coords-info {
+  font-size: 0.85rem;
+  color: #4b5563;
+  font-family: monospace;
+  margin-top: 8px;
+}
+
+.btn-group-99 {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 15px;
+}
+
+.btn-99 {
   flex: 1;
-  padding: 12px;
+  padding: 14px;
   border: none;
   border-radius: 12px;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-motorista {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
 }
 
-button:active {
-  transform: scale(0.97);
-}
-
-#motorista {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-#motorista:hover {
-  background: linear-gradient(135deg, #5a67d8 0%, #6b46a0 100%);
-}
-
-#passageiro {
+.btn-passageiro {
   background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
 }
 
-#passageiro:hover {
-  background: linear-gradient(135deg, #e879f9 0%, #f43f5e 100%);
+.btn-encerrar {
+  background: #ef4444;
+  color: white;
+  width: 100%;
+  margin-top: 10px;
 }
 
-#encerrar {
-  background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+.btn-99:active {
+  transform: scale(0.98);
 }
 
-#encerrar:hover {
-  background: linear-gradient(135deg, #b91c1c 0%, #7f1d1d 100%);
+.vehicles-list {
+  max-height: 200px;
+  overflow-y: auto;
 }
 
-#status {
-  margin-top: 12px;
-  padding: 12px;
-  background: #f8fafc;
+.vehicle-item {
+  background: white;
+  border: 1px solid #e5e7eb;
   border-radius: 12px;
-  font-size: 0.85rem;
-  text-align: center;
-  color: #1e293b;
-  border-left: 4px solid #3b82f6;
-  word-break: break-word;
+  padding: 12px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
-#status.online-motorista {
-  border-left-color: #10b981;
-  background: #ecfdf5;
+.vehicle-icon {
+  font-size: 24px;
 }
 
-#status.online-passageiro {
-  border-left-color: #f59e0b;
-  background: #fffbeb;
+.vehicle-info {
+  flex: 1;
 }
 
+.vehicle-name {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.vehicle-distance {
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.distance-badge {
+  background: #10b981;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* Toast notifications */
 .toast {
   position: fixed;
-  bottom: 20px;
+  top: 20px;
   left: 20px;
   right: 20px;
-  background: #1e293b;
+  background: #1f2937;
   color: white;
   padding: 12px 16px;
   border-radius: 12px;
   font-size: 0.85rem;
   text-align: center;
   z-index: 2000;
-  animation: slideUp 0.3s ease;
+  animation: slideDown 0.3s ease;
   box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-}
-
-.toast.error {
-  background: #dc2626;
 }
 
 .toast.success {
   background: #10b981;
 }
 
-@keyframes slideUp {
+.toast.error {
+  background: #ef4444;
+}
+
+@keyframes slideDown {
   from {
-    transform: translateY(100px);
+    transform: translateY(-100px);
     opacity: 0;
   }
   to {
@@ -153,65 +224,75 @@ button:active {
   }
 }
 
-/* Indicador de usuário ativo */
-.user-badge {
-  position: absolute;
-  bottom: 20px;
-  right: 20px;
-  z-index: 1000;
-  background: rgba(0,0,0,0.75);
-  backdrop-filter: blur(8px);
-  padding: 8px 16px;
-  border-radius: 30px;
-  color: white;
-  font-size: 0.75rem;
-  font-weight: 500;
-  pointer-events: none;
+/* Loading */
+.loading {
+  text-align: center;
+  padding: 20px;
+  color: #6b7280;
 }
 
-/* Responsivo */
-@media (max-width: 640px) {
-  #painel {
-    top: 10px;
-    left: 10px;
-    right: 10px;
-    max-width: none;
-    padding: 12px;
+/* Responsive */
+@media (min-width: 768px) {
+  .painel-99 {
+    bottom: 20px;
+    left: 20px;
+    right: auto;
+    width: 380px;
+    border-radius: 24px;
   }
   
-  button {
-    padding: 10px;
-    font-size: 0.9rem;
-  }
-  
-  h3 {
-    font-size: 1.1rem;
-    margin-bottom: 10px;
+  .painel-99.minimizado {
+    transform: translateY(calc(100% - 70px));
   }
 }
 </style>
 </head>
 <body>
 
-<div id="painel">
-  <h3>🚗 App de Corridas</h3>
-  <div class="btn-group">
-    <button id="motorista">🚗 Motorista</button>
-    <button id="passageiro">🚶 Passageiro</button>
-  </div>
-  <button id="encerrar">🔴 Encerrar Corrida</button>
-  <div id="status">⚡ Escolha uma opção para começar</div>
-</div>
-
 <div id="map"></div>
-<div id="toast-container"></div>
+
+<div class="painel-99" id="painel">
+  <div class="painel-header" id="togglePanel">
+    <h3>
+      <i class="fas fa-car"></i>
+      <span id="panelTitle">99 App</span>
+    </h3>
+    <button class="toggle-btn" id="toggleBtn">
+      <i class="fas fa-chevron-down"></i>
+    </button>
+  </div>
+  
+  <div id="panelContent">
+    <div class="status-card" id="statusCard">
+      <div id="statusIcon" class="status-offline" style="padding: 8px; border-radius: 12px; text-align: center;">
+        <i class="fas fa-circle"></i> Offline
+      </div>
+      <div id="coordsDisplay" class="coords-info" style="display: none;"></div>
+    </div>
+    
+    <div class="btn-group-99">
+      <button class="btn-99 btn-motorista" id="btnMotorista">
+        <i class="fas fa-taxi"></i> Sou Motorista
+      </button>
+      <button class="btn-99 btn-passageiro" id="btnPassageiro">
+        <i class="fas fa-walking"></i> Sou Passageiro
+      </button>
+    </div>
+    
+    <button class="btn-99 btn-encerrar" id="btnEncerrar">
+      <i class="fas fa-power-off"></i> Encerrar Corrida
+    </button>
+    
+    <div id="vehiclesContainer" style="margin-top: 15px;"></div>
+  </div>
+</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script type="module">
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
-// Configuração do Supabase
+// Supabase config
 const supabase = createClient(
   'https://fqbxhkcdefwsuefifygk.supabase.co',
   'sb_publishable_jC8Ntyx8QD2FHkP8Bqa63A_sLljd1Fj'
@@ -220,115 +301,135 @@ const supabase = createClient(
 // Variáveis globais
 let tipoUsuario = null;
 let watchId = null;
-let intervalId = null;
-let meuID = localStorage.getItem("usuario_id");
+let updateInterval = null;
+let meuID = localStorage.getItem("usuario_id_99");
 
 if (!meuID) {
   meuID = crypto.randomUUID();
-  localStorage.setItem("usuario_id", meuID);
+  localStorage.setItem("usuario_id_99", meuID);
 }
 
-const statusDiv = document.getElementById("status");
-const map = L.map("map").setView([-23.5505, -46.6333], 13);
+let minhaPosicao = null;
+let map = null;
+let markerMotorista = null;
+let marcadoresVeiculos = {};
+let polylineRota = null;
 
-// Camada do mapa
-L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> & CartoDB',
-  maxZoom: 19,
-  subdomains: 'abcd'
-}).addTo(map);
+// Inicializar mapa
+function initMap() {
+  map = L.map("map").setView([-23.5505, -46.6333], 14);
+  
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
+    maxZoom: 19
+  }).addTo(map);
+}
 
-// Armazenar marcadores
-const marcadores = {};
+initMap();
 
 // Ícones personalizados
-const carroIcon = L.icon({
-  iconUrl: 'https://cdn-icons-png.flaticon.com/512/744/744465.png',
-  iconSize: [45, 45],
-  popupAnchor: [0, -20]
-});
-
-const passageiroIcon = L.icon({
-  iconUrl: 'https://cdn-icons-png.flaticon.com/512/64/64113.png',
+const iconeCarro = L.divIcon({
+  html: '<div style="background: #667eea; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.2); border: 2px solid white;"><i class="fas fa-car" style="color: white; font-size: 20px;"></i></div>',
   iconSize: [40, 40],
-  popupAnchor: [0, -15]
+  className: 'custom-div-icon'
 });
 
-// Função para mostrar notificações toast
+const iconePassageiroLocal = L.divIcon({
+  html: '<div style="background: #10b981; width: 35px; height: 35px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.2); border: 2px solid white;"><i class="fas fa-user" style="color: white; font-size: 18px;"></i></div>',
+  iconSize: [35, 35],
+  className: 'custom-div-icon'
+});
+
+const iconeVeiculoOutro = L.divIcon({
+  html: '<div style="background: #f59e0b; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.2); border: 2px solid white;"><i class="fas fa-car" style="color: white; font-size: 20px;"></i></div>',
+  iconSize: [40, 40],
+  className: 'custom-div-icon'
+});
+
+// Funções auxiliares
 function showToast(message, type = 'info') {
-  const container = document.getElementById('toast-container');
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
-  toast.textContent = message;
-  container.appendChild(toast);
+  toast.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i> ${message}`;
+  document.body.appendChild(toast);
   
-  setTimeout(() => {
-    toast.remove();
-  }, 3000);
+  setTimeout(() => toast.remove(), 3000);
 }
 
-// Atualizar status visual
-function updateStatusUI(lat, lng) {
-  if (!tipoUsuario) return;
+function formatDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const d = R * c;
   
-  const statusClass = tipoUsuario === 'motorista' ? 'online-motorista' : 'online-passageiro';
-  statusDiv.className = statusClass;
+  if (d < 1) return `${Math.round(d * 1000)}m`;
+  return `${d.toFixed(1)}km`;
+}
+
+// Atualizar UI baseado no tipo
+function updateUI() {
+  const panelTitle = document.getElementById('panelTitle');
+  const statusIcon = document.getElementById('statusIcon');
+  const coordsDisplay = document.getElementById('coordsDisplay');
   
-  if (lat && lng) {
-    statusDiv.innerHTML = `
-      🟢 <strong>${tipoUsuario === 'motorista' ? 'Motorista' : 'Passageiro'} Online</strong><br>
-      📍 ${lat.toFixed(6)}°, ${lng.toFixed(6)}°<br>
-      🔄 Atualizando em tempo real
-    `;
+  if (tipoUsuario === 'motorista') {
+    panelTitle.innerHTML = '<i class="fas fa-taxi"></i> Motorista - Online';
+    statusIcon.innerHTML = '<i class="fas fa-circle" style="color: #10b981;"></i> Motorista Online - Aguardando corridas';
+    statusIcon.className = 'status-online';
+    coordsDisplay.style.display = 'block';
+  } else if (tipoUsuario === 'passageiro') {
+    panelTitle.innerHTML = '<i class="fas fa-walking"></i> Passageiro - Procurando carros';
+    statusIcon.innerHTML = '<i class="fas fa-circle" style="color: #10b981;"></i> Passageiro Online - Carros próximos aparecerão no mapa';
+    statusIcon.className = 'status-online';
+    coordsDisplay.style.display = 'block';
   } else {
-    statusDiv.innerHTML = `
-      🟢 <strong>${tipoUsuario === 'motorista' ? 'Motorista' : 'Passageiro'} Online</strong><br>
-      📡 Aguardando sinal GPS...
-    `;
+    panelTitle.innerHTML = '<i class="fas fa-car"></i> 99 App';
+    statusIcon.innerHTML = '<i class="fas fa-circle"></i> Offline - Escolha uma opção';
+    statusIcon.className = 'status-offline';
+    coordsDisplay.style.display = 'none';
   }
 }
 
-// Iniciar rastreamento GPS
+// Iniciar GPS
 function iniciarGPS() {
   if (!navigator.geolocation) {
-    showToast('❌ Seu navegador não suporta GPS', 'error');
+    showToast('Seu navegador não suporta GPS', 'error');
     return;
   }
   
-  statusDiv.innerHTML = "📡 Obtendo localização...";
-  statusDiv.className = '';
+  showToast(`Iniciando como ${tipoUsuario === 'motorista' ? 'Motorista' : 'Passageiro'}...`, 'success');
   
-  navigator.geolocation.getCurrentPosition(
-    () => {
-      // Sucesso ao obter permissão
-      showToast(`✅ ${tipoUsuario === 'motorista' ? 'Motorista' : 'Passageiro'} ativado! Rastreando posição...`, 'success');
-    },
-    (err) => {
-      if (err.code === 1) {
-        showToast('❌ Permissão de localização negada. Ative o GPS.', 'error');
-      } else {
-        showToast('❌ Erro ao acessar GPS: ' + err.message, 'error');
-      }
-    }
-  );
-  
-  if (watchId !== null) {
-    navigator.geolocation.clearWatch(watchId);
-  }
+  if (watchId) navigator.geolocation.clearWatch(watchId);
   
   watchId = navigator.geolocation.watchPosition(
     async (pos) => {
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
+      minhaPosicao = { lat, lng };
       
-      updateStatusUI(lat, lng);
+      // Atualizar display
+      document.getElementById('coordsDisplay').innerHTML = `
+        <i class="fas fa-map-marker-alt"></i> ${lat.toFixed(6)}°, ${lng.toFixed(6)}°
+      `;
       
-      // Centralizar mapa no usuário
-      map.setView([lat, lng], 16);
+      // Centralizar mapa
+      map.setView([lat, lng], 15);
       
+      // Atualizar próprio marcador
+      if (markerMotorista) map.removeLayer(markerMotorista);
+      
+      const meuIcone = tipoUsuario === 'motorista' ? iconeCarro : iconePassageiroLocal;
+      markerMotorista = L.marker([lat, lng], { icon: meuIcone })
+        .addTo(map)
+        .bindPopup(tipoUsuario === 'motorista' ? '🚗 Você (Motorista)' : '👤 Você (Passageiro)');
+      
+      // Salvar no Supabase
       try {
-        // Enviar localização para o Supabase
-        const { error } = await supabase
+        await supabase
           .from("usuarios")
           .upsert({
             id: meuID,
@@ -338,109 +439,164 @@ function iniciarGPS() {
             longitude: lng,
             online: true,
             atualizado_em: new Date().toISOString()
-          }, { onConflict: 'id' });
-        
-        if (error) {
-          console.error('Erro Supabase:', error);
-          showToast('Erro ao enviar localização', 'error');
-        }
+          });
       } catch (err) {
-        console.error('Erro de rede:', err);
+        console.error('Erro ao salvar:', err);
       }
     },
     (err) => {
       console.error('Erro GPS:', err);
-      let errorMsg = 'Erro no GPS: ';
-      switch(err.code) {
-        case 1: errorMsg += 'Permissão negada'; break;
-        case 2: errorMsg += 'Posição indisponível'; break;
-        case 3: errorMsg += 'Timeout'; break;
-        default: errorMsg += err.message;
-      }
-      showToast(errorMsg, 'error');
-      statusDiv.innerHTML = `⚠️ ${errorMsg}`;
+      showToast('Erro ao acessar GPS. Verifique as permissões.', 'error');
     },
     {
       enableHighAccuracy: true,
       maximumAge: 5000,
-      timeout: 15000
+      timeout: 10000
     }
   );
 }
 
-// Atualizar mapa com outros usuários
-async function atualizarMapa() {
+// Calcular distância entre dois pontos
+function calcularDistancia(pos1, pos2) {
+  const R = 6371;
+  const dLat = (pos2.lat - pos1.lat) * Math.PI / 180;
+  const dLon = (pos2.lng - pos1.lng) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(pos1.lat * Math.PI / 180) * Math.cos(pos2.lat * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
+
+// Atualizar mapa com veículos
+async function atualizarVeiculos() {
   if (!tipoUsuario) return;
   
   try {
     const { data, error } = await supabase
       .from("usuarios")
       .select("*")
-      .eq("online", true)
-      .gte("atualizado_em", new Date(Date.now() - 30000).toISOString()); // Apenas atualizações recentes
+      .eq("online", true);
     
-    if (error) {
-      console.error('Erro ao buscar usuários:', error);
-      return;
+    if (error) throw error;
+    
+    const vehiclesContainer = document.getElementById('vehiclesContainer');
+    
+    if (tipoUsuario === 'passageiro' && minhaPosicao) {
+      // Passageiro: mostrar motoristas próximos
+      const motoristas = data.filter(u => u.tipo === 'motorista' && u.id !== meuID);
+      
+      if (motoristas.length > 0) {
+        const vehiclesList = motoristas.map(m => {
+          const distancia = calcularDistancia(minhaPosicao, { lat: m.latitude, lng: m.longitude });
+          return `
+            <div class="vehicle-item">
+              <div class="vehicle-icon">🚗</div>
+              <div class="vehicle-info">
+                <div class="vehicle-name">Motorista próximo</div>
+                <div class="vehicle-distance">${distancia < 1 ? `${Math.round(distancia * 1000)}m` : `${distancia.toFixed(1)}km`} de distância</div>
+              </div>
+              <div class="distance-badge">${distancia < 1 ? 'Muito perto!' : 'Disponível'}</div>
+            </div>
+          `;
+        }).join('');
+        
+        vehiclesContainer.innerHTML = `
+          <div style="margin-top: 15px;">
+            <strong><i class="fas fa-car"></i> Motoristas próximos (${motoristas.length})</strong>
+            <div class="vehicles-list" style="margin-top: 10px;">
+              ${vehiclesList}
+            </div>
+          </div>
+        `;
+      } else {
+        vehiclesContainer.innerHTML = `
+          <div class="loading">
+            <i class="fas fa-search"></i> Procurando motoristas próximos...
+          </div>
+        `;
+      }
+      
+      // Atualizar marcadores dos motoristas no mapa
+      data.forEach(usuario => {
+        if (usuario.tipo === 'motorista' && usuario.id !== meuID) {
+          const pos = [usuario.latitude, usuario.longitude];
+          
+          if (marcadoresVeiculos[usuario.id]) {
+            marcadoresVeiculos[usuario.id].setLatLng(pos);
+          } else {
+            const marker = L.marker(pos, { icon: iconeVeiculoOutro })
+              .addTo(map)
+              .bindPopup(`
+                <div style="text-align: center;">
+                  <strong>🚗 Motorista</strong><br>
+                  Distância: ${calcularDistancia(minhaPosicao, { lat: usuario.latitude, lng: usuario.longitude }).toFixed(1)}km
+                </div>
+              `);
+            marcadoresVeiculos[usuario.id] = marker;
+          }
+        }
+      });
+      
+    } else if (tipoUsuario === 'motorista') {
+      // Motorista: ver passageiros próximos
+      const passageiros = data.filter(u => u.tipo === 'passageiro');
+      
+      if (passageiros.length > 0) {
+        vehiclesContainer.innerHTML = `
+          <div style="margin-top: 15px; padding: 12px; background: #e0e7ff; border-radius: 12px;">
+            <i class="fas fa-users"></i> <strong>${passageiros.length} passageiros</strong> na região aguardando
+          </div>
+        `;
+      } else {
+        vehiclesContainer.innerHTML = `
+          <div class="loading">
+            <i class="fas fa-clock"></i> Aguardando passageiros...
+          </div>
+        `;
+      }
+      
+      // Mostrar passageiros no mapa
+      data.forEach(usuario => {
+        if (usuario.tipo === 'passageiro') {
+          const pos = [usuario.latitude, usuario.longitude];
+          
+          if (marcadoresVeiculos[usuario.id]) {
+            marcadoresVeiculos[usuario.id].setLatLng(pos);
+          } else {
+            const marker = L.marker(pos, { icon: iconePassageiroLocal })
+              .addTo(map)
+              .bindPopup('🚶 Passageiro aguardando');
+            marcadoresVeiculos[usuario.id] = marker;
+          }
+        }
+      });
     }
     
-    if (!data || data.length === 0) return;
-    
-    data.forEach(usuario => {
-      // Filtros baseados no tipo de usuário
-      if (tipoUsuario === "motorista") {
-        // Motorista vê apenas outros motoristas
-        if (usuario.tipo !== "motorista") return;
-        if (usuario.id === meuID) return;
-      } 
-      else if (tipoUsuario === "passageiro") {
-        // Passageiro vê motoristas e a si mesmo
-        if (usuario.tipo !== "motorista" && usuario.id !== meuID) return;
-      }
-      
-      // Validar coordenadas
-      if (!usuario.latitude || !usuario.longitude) return;
-      
-      const pos = [usuario.latitude, usuario.longitude];
-      const icone = usuario.tipo === "motorista" ? carroIcon : passageiroIcon;
-      
-      if (marcadores[usuario.id]) {
-        marcadores[usuario.id].setLatLng(pos);
-      } else {
-        const popupText = usuario.id === meuID 
-          ? `👤 Você (${usuario.tipo === 'motorista' ? 'Motorista' : 'Passageiro'})`
-          : `🚗 ${usuario.tipo === 'motorista' ? 'Motorista' : 'Passageiro'}`;
-        
-        marcadores[usuario.id] = L.marker(pos, { icon: icone })
-          .addTo(map)
-          .bindPopup(popupText);
-      }
-    });
-    
-    // Limpar marcadores de usuários offline
-    const onlineIds = new Set(data.map(u => u.id));
-    Object.keys(marcadores).forEach(id => {
-      if (!onlineIds.has(id)) {
-        map.removeLayer(marcadores[id]);
-        delete marcadores[id];
+    // Limpar marcadores antigos
+    const idsAtivos = new Set(data.map(u => u.id));
+    Object.keys(marcadoresVeiculos).forEach(id => {
+      if (!idsAtivos.has(id)) {
+        map.removeLayer(marcadoresVeiculos[id]);
+        delete marcadoresVeiculos[id];
       }
     });
     
   } catch (err) {
-    console.error('Erro na atualização do mapa:', err);
+    console.error('Erro ao atualizar:', err);
   }
 }
 
 // Encerrar sessão
 async function encerrarSessao() {
-  if (watchId !== null) {
+  if (watchId) {
     navigator.geolocation.clearWatch(watchId);
     watchId = null;
   }
   
-  if (intervalId) {
-    clearInterval(intervalId);
-    intervalId = null;
+  if (updateInterval) {
+    clearInterval(updateInterval);
+    updateInterval = null;
   }
   
   try {
@@ -452,76 +608,80 @@ async function encerrarSessao() {
     console.error('Erro ao encerrar:', err);
   }
   
-  tipoUsuario = null;
-  statusDiv.innerHTML = "⚡ Desconectado. Escolha uma opção";
-  statusDiv.className = '';
-  showToast('🔴 Sessão encerrada', 'info');
+  if (markerMotorista) {
+    map.removeLayer(markerMotorista);
+    markerMotorista = null;
+  }
   
-  // Limpar todos os marcadores exceto o próprio se existir
-  Object.keys(marcadores).forEach(id => {
-    map.removeLayer(marcadores[id]);
-    delete marcadores[id];
+  Object.keys(marcadoresVeiculos).forEach(id => {
+    map.removeLayer(marcadoresVeiculos[id]);
+    delete marcadoresVeiculos[id];
   });
+  
+  tipoUsuario = null;
+  minhaPosicao = null;
+  updateUI();
+  document.getElementById('vehiclesContainer').innerHTML = '';
+  showToast('Sessão encerrada', 'info');
 }
 
 // Event listeners
-document.getElementById("motorista").onclick = () => {
-  if (tipoUsuario) encerrarSessao();
-  tipoUsuario = "motorista";
+document.getElementById('btnMotorista').onclick = async () => {
+  if (tipoUsuario) await encerrarSessao();
+  tipoUsuario = 'motorista';
+  updateUI();
   iniciarGPS();
   
-  if (intervalId) clearInterval(intervalId);
-  intervalId = setInterval(atualizarMapa, 2000);
+  if (updateInterval) clearInterval(updateInterval);
+  updateInterval = setInterval(atualizarVeiculos, 2000);
 };
 
-document.getElementById("passageiro").onclick = () => {
-  if (tipoUsuario) encerrarSessao();
-  tipoUsuario = "passageiro";
+document.getElementById('btnPassageiro').onclick = async () => {
+  if (tipoUsuario) await encerrarSessao();
+  tipoUsuario = 'passageiro';
+  updateUI();
   iniciarGPS();
   
-  if (intervalId) clearInterval(intervalId);
-  intervalId = setInterval(atualizarMapa, 2000);
+  if (updateInterval) clearInterval(updateInterval);
+  updateInterval = setInterval(atualizarVeiculos, 2000);
 };
 
-document.getElementById("encerrar").onclick = async () => {
+document.getElementById('btnEncerrar').onclick = async () => {
   await encerrarSessao();
 };
 
-// Limpar ao fechar a página
-window.addEventListener('beforeunload', () => {
-  if (watchId !== null) {
-    navigator.geolocation.clearWatch(watchId);
-  }
-  supabase
-    .from("usuarios")
-    .update({ online: false })
-    .eq("id", meuID)
-    .then(() => console.log('Status atualizado'));
-});
+// Painel minimizável
+let minimized = false;
+const painel = document.getElementById('painel');
+const toggleBtn = document.getElementById('toggleBtn');
+const panelContent = document.getElementById('panelContent');
+const panelHeader = document.getElementById('togglePanel');
 
-// Verificar se já existe uma sessão ativa ao carregar
-async function verificarSessaoAtiva() {
-  const { data } = await supabase
-    .from("usuarios")
-    .select("tipo, online")
-    .eq("id", meuID)
-    .single();
-  
-  if (data && data.online) {
-    showToast('🔄 Sessão anterior encontrada. Inicie novamente.', 'info');
-    await supabase.from("usuarios").update({ online: false }).eq("id", meuID);
+function togglePanel() {
+  minimized = !minimized;
+  if (minimized) {
+    painel.classList.add('minimizado');
+    toggleBtn.innerHTML = '<i class="fas fa-chevron-up"></i>';
+    panelContent.style.display = 'none';
+  } else {
+    painel.classList.remove('minimizado');
+    toggleBtn.innerHTML = '<i class="fas fa-chevron-down"></i>';
+    panelContent.style.display = 'block';
   }
 }
 
-verificarSessaoAtiva();
+toggleBtn.onclick = togglePanel;
+panelHeader.onclick = togglePanel;
 
-// Adicionar badge de usuário
-const badge = document.createElement('div');
-badge.className = 'user-badge';
-badge.innerHTML = `🆔 ${meuID.slice(0, 8)}...`;
-document.body.appendChild(badge);
+// Limpar ao fechar
+window.addEventListener('beforeunload', () => {
+  if (watchId) navigator.geolocation.clearWatch(watchId);
+  supabase.from("usuarios").update({ online: false }).eq("id", meuID);
+});
 
-console.log('App iniciado! ID:', meuID);
+// Iniciar
+updateUI();
+console.log('App 99 iniciado! ID:', meuID);
 </script>
 
 </body>
