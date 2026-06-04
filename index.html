@@ -3,72 +3,32 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mini App Corridas</title>
 
-<title>Mini App Tipo 99</title>
-
-<link rel="stylesheet"
-href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
 <style>
-
-html,body{
-margin:0;
-padding:0;
-height:100%;
-font-family:Arial,sans-serif;
-}
-
-#map{
-width:100%;
-height:100vh;
-}
-
+html,body{margin:0;padding:0;height:100%;font-family:Arial,sans-serif}
+#map{height:100vh;width:100%}
 #painel{
-position:absolute;
-top:10px;
-left:10px;
-z-index:9999;
-background:#fff;
-padding:15px;
-border-radius:10px;
-box-shadow:0 0 10px rgba(0,0,0,.3);
-max-width:220px;
+position:absolute;top:10px;left:10px;z-index:9999;
+background:#fff;padding:15px;border-radius:10px;
+box-shadow:0 0 10px rgba(0,0,0,.3);width:230px
 }
-
-button{
-width:100%;
-padding:12px;
-margin-top:8px;
-cursor:pointer;
-font-size:16px;
-}
-
-#status{
-margin-top:10px;
-font-size:14px;
-}
-
+button{width:100%;padding:10px;margin-top:6px;cursor:pointer}
+#status{margin-top:10px;font-size:13px}
 </style>
 </head>
-
 <body>
 
 <div id="painel">
+<h3>App de Corridas</h3>
 
-<h3>Meu App</h3>
+<button id="motorista">🚗 Sou Motorista</button>
+<button id="passageiro">🚶 Sou Passageiro</button>
+<button id="encerrar">🔴 Encerrar</button>
 
-<button id="motorista">
-🚗 Sou Motorista
-</button>
-
-<button id="passageiro">
-🚶 Sou Passageiro
-</button>
-
-<div id="status">
-Escolha uma opção
-</div>
-
+<div id="status">Escolha uma opção</div>
 </div>
 
 <div id="map"></div>
@@ -76,7 +36,6 @@ Escolha uma opção
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script type="module">
-
 import { createClient }
 from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
@@ -86,197 +45,153 @@ const supabase = createClient(
 );
 
 let tipoUsuario = null;
+let watchId = null;
 
-let meuID = localStorage.getItem('usuario_id');
+let meuID = localStorage.getItem("usuario_id");
 
 if(!meuID){
-
-meuID = crypto.randomUUID();
-
-localStorage.setItem(
-'usuario_id',
-meuID
-);
-
+  meuID = crypto.randomUUID();
+  localStorage.setItem("usuario_id", meuID);
 }
 
-const map = L.map('map')
-.setView([-14.235,-51.925],4);
+const statusDiv = document.getElementById("status");
+
+const map = L.map("map").setView([-14.235,-51.925],4);
 
 L.tileLayer(
 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-{
-maxZoom:19,
-attribution:'OpenStreetMap'
-}
+{maxZoom:19}
 ).addTo(map);
-
-const status =
-document.getElementById('status');
 
 const marcadores = {};
 
 const carroIcon = L.icon({
-iconUrl:
-'https://cdn-icons-png.flaticon.com/512/744/744465.png',
+iconUrl:'https://cdn-icons-png.flaticon.com/512/744/744465.png',
 iconSize:[40,40]
 });
 
 const passageiroIcon = L.icon({
-iconUrl:
-'https://cdn-icons-png.flaticon.com/512/64/64113.png',
+iconUrl:'https://cdn-icons-png.flaticon.com/512/64/64113.png',
 iconSize:[35,35]
 });
 
-document
-.getElementById('motorista')
-.addEventListener('click',()=>{
+document.getElementById("motorista").onclick = ()=>{
+  tipoUsuario = "motorista";
+  iniciarGPS();
+};
 
-tipoUsuario='motorista';
+document.getElementById("passageiro").onclick = ()=>{
+  tipoUsuario = "passageiro";
+  iniciarGPS();
+};
 
-status.innerHTML =
-'🚗 Motorista ativo';
+document.getElementById("encerrar").onclick = async ()=>{
 
-iniciarGPS();
+  if(watchId !== null){
+    navigator.geolocation.clearWatch(watchId);
+  }
 
-});
+  await supabase
+  .from("usuarios")
+  .update({online:false})
+  .eq("id",meuID);
 
-document
-.getElementById('passageiro')
-.addEventListener('click',()=>{
-
-tipoUsuario='passageiro';
-
-status.innerHTML =
-'🚶 Passageiro ativo';
-
-iniciarGPS();
-
-});
+  statusDiv.innerHTML = "🔴 Offline";
+};
 
 function iniciarGPS(){
 
-navigator.geolocation.watchPosition(
+  statusDiv.innerHTML = "Obtendo GPS...";
 
-async(pos)=>{
+  watchId = navigator.geolocation.watchPosition(
 
-const lat =
-pos.coords.latitude;
+    async(pos)=>{
 
-const lng =
-pos.coords.longitude;
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
 
-status.innerHTML =
-`
-Tipo: ${tipoUsuario}<br>
-Lat: ${lat.toFixed(6)}<br>
-Lng: ${lng.toFixed(6)}
-`;
+      statusDiv.innerHTML =
+      `${tipoUsuario}<br>Lat: ${lat.toFixed(6)}<br>Lng: ${lng.toFixed(6)}`;
 
-map.setView(
-[lat,lng],
-16
-);
+      map.setView([lat,lng],16);
 
-await supabase
-.from('usuarios')
-.upsert({
+      await supabase
+      .from("usuarios")
+      .upsert({
+        id:meuID,
+        tipo:tipoUsuario,
+        nome:tipoUsuario,
+        latitude:lat,
+        longitude:lng,
+        online:true,
+        atualizado_em:new Date().toISOString()
+      });
 
-id:meuID,
-
-tipo:tipoUsuario,
-
-nome:tipoUsuario,
-
-latitude:lat,
-
-longitude:lng,
-
-atualizado_em:
-new Date()
-
-});
-
-},
-
-(err)=>{
-
-alert(
-'Erro GPS: '+
-err.message
-);
-
-},
-
-{
-enableHighAccuracy:true,
-maximumAge:0,
-timeout:10000
-}
-
-);
-
+    },
+    (err)=>{
+      alert(err.message);
+    },
+    {
+      enableHighAccuracy:true,
+      maximumAge:0,
+      timeout:10000
+    }
+  );
 }
 
 async function atualizarMapa(){
 
-const { data,error } =
-await supabase
-.from('usuarios')
-.select('*');
+  const { data,error } = await supabase
+  .from("usuarios")
+  .select("*");
 
-if(error){
+  if(error){
+    console.log(error);
+    return;
+  }
 
-console.log(error);
+  data.forEach(usuario=>{
 
-return;
+    if(usuario.online === false) return;
 
-}
+    if(tipoUsuario === "motorista"){
+      if(usuario.tipo !== "motorista") return;
+    }
 
-data.forEach(usuario=>{
+    if(tipoUsuario === "passageiro"){
+      if(
+        usuario.tipo !== "motorista" &&
+        usuario.id !== meuID
+      ){
+        return;
+      }
+    }
 
-const pos = [
-usuario.latitude,
-usuario.longitude
-];
+    const pos = [usuario.latitude, usuario.longitude];
 
-const icone =
-usuario.tipo === 'motorista'
-?
-carroIcon
-:
-passageiroIcon;
+    const icone =
+      usuario.tipo === "motorista"
+      ? carroIcon
+      : passageiroIcon;
 
-if(marcadores[usuario.id]){
+    if(marcadores[usuario.id]){
 
-marcadores[usuario.id]
-.setLatLng(pos);
+      marcadores[usuario.id].setLatLng(pos);
 
-}else{
+    }else{
 
-marcadores[usuario.id] =
-L.marker(
-pos,
-{
-icon:icone
-}
-)
-.addTo(map)
-.bindPopup(
-usuario.tipo
-);
+      marcadores[usuario.id] =
+      L.marker(pos,{icon:icone})
+      .addTo(map)
+      .bindPopup(usuario.tipo);
 
-}
+    }
 
-});
+  });
 
 }
 
-setInterval(
-atualizarMapa,
-3000
-);
-
+setInterval(atualizarMapa,3000);
 atualizarMapa();
 
 </script>
