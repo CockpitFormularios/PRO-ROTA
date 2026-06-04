@@ -165,6 +165,7 @@ let driverMarker = null;
 let routePolyline = null;
 let driverInterval = null;
 let pollingInterval = null;
+let modalShownForRide = null; // Controla qual corrida já mostrou o modal
 
 const userId = localStorage.getItem('gomove_user_id') || crypto.randomUUID();
 localStorage.setItem('gomove_user_id', userId);
@@ -199,16 +200,28 @@ function showToast(msg, type = 'info') {
   setTimeout(() => toast.remove(), 3000);
 }
 
-// ========== MODAL CORRIGIDO - FECHA AO CLICAR EM OK ==========
-function showRideCompletedModal(valor, destino) {
-  // Verificar se já existe um modal aberto
-  const existingModal = document.querySelector('.modal-finalizacao');
-  if (existingModal) {
-    existingModal.remove();
+// ========== MODAL CORRIGIDO - Aparece apenas uma vez ==========
+let modalActive = false;
+
+function showRideCompletedModal(valor, destino, rideId) {
+  // Se já mostramos o modal para esta corrida, não mostrar novamente
+  if (modalShownForRide === rideId) {
+    console.log('Modal já foi mostrado para esta corrida:', rideId);
+    return;
   }
+  
+  // Se já tem um modal ativo, não criar outro
+  if (modalActive) {
+    console.log('Modal já está ativo');
+    return;
+  }
+  
+  modalActive = true;
+  modalShownForRide = rideId;
   
   const modal = document.createElement('div');
   modal.className = 'modal-finalizacao';
+  modal.id = 'rideCompletedModal';
   modal.innerHTML = `
     <div class="modal-finalizacao-content">
       <i class="fas fa-check-circle"></i>
@@ -226,6 +239,7 @@ function showRideCompletedModal(valor, destino) {
   if (closeBtn) {
     closeBtn.addEventListener('click', () => {
       modal.remove();
+      modalActive = false;
       // Limpar marcadores após fechar o modal
       if (driverMarker) {
         map.removeLayer(driverMarker);
@@ -238,10 +252,11 @@ function showRideCompletedModal(valor, destino) {
     });
   }
   
-  // Fechar automaticamente após 6 segundos (fallback)
+  // Fechar automaticamente após 5 segundos (fallback)
   setTimeout(() => {
     if (modal && modal.parentNode) {
       modal.remove();
+      modalActive = false;
       if (driverMarker) {
         map.removeLayer(driverMarker);
         driverMarker = null;
@@ -251,7 +266,7 @@ function showRideCompletedModal(valor, destino) {
         routePolyline = null;
       }
     }
-  }, 6000);
+  }, 5000);
 }
 
 function calcularDistancia(lat1, lng1, lat2, lng2) {
@@ -340,7 +355,8 @@ function iniciarPolling() {
           
           if (novaCorrida.status === 'finalizado') {
             showToast(`🏁 Corrida finalizada! R$ ${novaCorrida.preco}`, 'success');
-            showRideCompletedModal(novaCorrida.preco, novaCorrida.destino);
+            // Mostrar modal APENAS UMA VEZ, passando o ID da corrida
+            showRideCompletedModal(novaCorrida.preco, novaCorrida.destino, novaCorrida.id);
             currentRide = null;
             if (driverInterval) clearInterval(driverInterval);
             if (driverMarker) map.removeLayer(driverMarker);
@@ -391,7 +407,7 @@ function iniciarPolling() {
           
           if (corridaAtiva.status === 'finalizado') {
             showToast(`🏁 Corrida finalizada!`, 'success');
-            showRideCompletedModal(corridaAtiva.preco, corridaAtiva.destino);
+            showRideCompletedModal(corridaAtiva.preco, corridaAtiva.destino, corridaAtiva.id);
             currentRide = null;
             if (routePolyline) map.removeLayer(routePolyline);
             renderScreen();
@@ -597,6 +613,7 @@ async function finalizarCorrida() {
   console.log('Finalizando corrida! Corrida ID:', currentRide.id);
   const preco = currentRide.preco;
   const destino = currentRide.destino;
+  const rideId = currentRide.id;
   
   const { error } = await supabase
     .from('corridas')
@@ -611,7 +628,7 @@ async function finalizarCorrida() {
     showToast('Erro ao finalizar corrida: ' + error.message, 'error');
   } else {
     showToast(`🏁 Corrida finalizada! R$ ${preco}`, 'success');
-    showRideCompletedModal(preco, destino);
+    showRideCompletedModal(preco, destino, rideId);
     currentRide = null;
     if (driverInterval) clearInterval(driverInterval);
     if (driverMarker) map.removeLayer(driverMarker);
