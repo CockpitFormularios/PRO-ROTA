@@ -38,6 +38,7 @@ body { font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; }
 .btn-primary { width: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 16px; border-radius: 16px; font-size: 1rem; font-weight: 600; cursor: pointer; margin-bottom: 12px; }
 .btn-secondary { width: 100%; background: white; color: #64748b; border: 1px solid #e2e8f0; padding: 12px; border-radius: 16px; cursor: pointer; }
 .btn-danger { background: #ef4444; color: white; }
+.btn-warning { background: #f59e0b; color: white; }
 .btn-success { background: #10b981; color: white; }
 
 .status-badge { display: inline-block; padding: 8px 16px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; margin-bottom: 12px; }
@@ -77,11 +78,14 @@ body { font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; }
 }
 @keyframes slideUp { from { transform: translateY(100px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
-.driver-marker {
-  background: #667eea;
-  border-radius: 50%;
-  border: 3px solid white;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+.distance-info {
+  text-align: center;
+  padding: 12px;
+  background: #e0e7ff;
+  border-radius: 12px;
+  margin: 12px 0;
+  font-weight: 600;
+  color: #4338ca;
 }
 
 @media (min-width: 768px) {
@@ -116,6 +120,8 @@ let userMarker = null;
 let driverMarker = null;
 let routePolyline = null;
 let driverInterval = null;
+let realtimeChannelMotorista = null;
+let realtimeChannelPassageiro = null;
 
 const userId = localStorage.getItem('gomove_user_id') || crypto.randomUUID();
 localStorage.setItem('gomove_user_id', userId);
@@ -130,11 +136,10 @@ function initMap() {
 }
 initMap();
 
-// Ícones personalizados
+// Ícones
 const driverIcon = L.divIcon({
-  html: '<div style="background: #667eea; width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.2); border: 3px solid white;"><i class="fas fa-car" style="color: white; font-size: 22px;"></i><div style="position: absolute; bottom: -20px; background: white; padding: 2px 6px; border-radius: 12px; font-size: 10px; font-weight: bold; white-space: nowrap;">Motorista</div></div>',
-  iconSize: [45, 55],
-  popupAnchor: [0, -30]
+  html: '<div style="background: #667eea; width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.2); border: 3px solid white;"><i class="fas fa-car" style="color: white; font-size: 22px;"></i></div>',
+  iconSize: [45, 45]
 });
 
 const passengerIcon = L.divIcon({
@@ -151,7 +156,21 @@ function showToast(msg, type = 'info') {
   setTimeout(() => toast.remove(), 3000);
 }
 
-// ========== FUNÇÃO PARA ATUALIZAR ROTA ==========
+function calcularDistancia(lat1, lng1, lat2, lng2) {
+  if (!lat1 || !lng1 || !lat2 || !lng2) return '--';
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLng/2) * Math.sin(dLng/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const d = R * c;
+  if (d < 1) return `${Math.round(d * 1000)}m`;
+  return `${d.toFixed(1)}km`;
+}
+
+// ========== TRAÇAR ROTA ==========
 async function tracarRota(origemLat, origemLng, destinoLat, destinoLng) {
   if (!origemLat || !origemLng || !destinoLat || !destinoLng) return;
   
@@ -161,15 +180,12 @@ async function tracarRota(origemLat, origemLng, destinoLat, destinoLng) {
     const response = await fetch(url);
     const data = await response.json();
     
-    if (routePolyline) {
-      map.removeLayer(routePolyline);
-    }
+    if (routePolyline) map.removeLayer(routePolyline);
     
     if (data.routes && data.routes[0]) {
       routePolyline = L.geoJSON(data.routes[0].geometry, {
         style: { color: '#667eea', weight: 5, opacity: 0.8 }
       }).addTo(map);
-      
       map.fitBounds(routePolyline.getBounds());
     }
   } catch (err) {
@@ -177,16 +193,12 @@ async function tracarRota(origemLat, origemLng, destinoLat, destinoLng) {
   }
 }
 
-// ========== RASTREAMENTO DO MOTORISTA EM TEMPO REAL ==========
-async function iniciarRastreamentoMotorista(motoristaId) {
-  if (driverInterval) {
-    clearInterval(driverInterval);
-    driverInterval = null;
-  }
+// ========== RASTREAMENTO DO MOTORISTA ==========
+function iniciarRastreamentoMotorista(motoristaId, passageiroLat, passageiroLng) {
+  if (driverInterval) clearInterval(driverInterval);
   
   console.log('🔄 Iniciando rastreamento do motorista:', motoristaId);
   
-  // Função para buscar localização do motorista
   const buscarLocalizacao = async () => {
     const { data: motorista } = await supabase
       .from('usuarios')
@@ -195,113 +207,133 @@ async function iniciarRastreamentoMotorista(motoristaId) {
       .single();
     
     if (motorista && motorista.latitude && motorista.longitude) {
-      console.log('📍 Motorista está em:', motorista.latitude, motorista.longitude);
-      
       if (driverMarker) {
         driverMarker.setLatLng([motorista.latitude, motorista.longitude]);
       } else {
         driverMarker = L.marker([motorista.latitude, motorista.longitude], { icon: driverIcon })
           .addTo(map)
-          .bindPopup(`🚗 ${motorista.nome || 'Motorista'} - ${motorista.carro || 'Veículo'}`);
+          .bindPopup(`🚗 ${motorista.nome || 'Motorista'}`);
       }
       
-      // Atualizar rota da posição do motorista até o passageiro
-      if (currentRide && currentRide.origem_lat && currentRide.origem_lng) {
-        await tracarRota(motorista.latitude, motorista.longitude, currentRide.origem_lat, currentRide.origem_lng);
-        
-        // Calcular distância
-        const dist = calcularDistancia(motorista.latitude, motorista.longitude, currentRide.origem_lat, currentRide.origem_lng);
-        const distanceEl = document.getElementById('distanceInfo');
-        if (distanceEl) {
-          distanceEl.innerHTML = `🚗 Motorista está a ${dist} de você`;
-        }
-      }
+      await tracarRota(motorista.latitude, motorista.longitude, passageiroLat, passageiroLng);
+      
+      const distancia = calcularDistancia(motorista.latitude, motorista.longitude, passageiroLat, passageiroLng);
+      const distanceEl = document.getElementById('distanceInfo');
+      if (distanceEl) distanceEl.innerHTML = `🚗 Motorista está a ${distancia} de você`;
     }
   };
   
-  // Buscar imediatamente
-  await buscarLocalizacao();
-  
-  // Buscar a cada 2 segundos
+  buscarLocalizacao();
   driverInterval = setInterval(buscarLocalizacao, 2000);
 }
 
-function calcularDistancia(lat1, lng1, lat2, lng2) {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-            Math.sin(dLng/2) * Math.sin(dLng/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  const d = R * c;
-  
-  if (d < 1) return `${Math.round(d * 1000)}m`;
-  return `${d.toFixed(1)}km`;
-}
-
-// ========== ESCUTAR MUDANÇAS EM TEMPO REAL ==========
+// ========== LISTENERS EM TEMPO REAL ==========
 function setupRealtimeListeners() {
   console.log('🎧 Configurando listeners em tempo real...');
   
-  // Listener para motorista: novas solicitações de corrida
+  // Listener para MOTORISTA: escuta mudanças na corrida que ele está
+  if (realtimeChannelMotorista) {
+    realtimeChannelMotorista.unsubscribe();
+  }
+  
+  realtimeChannelMotorista = supabase
+    .channel('motorista-corrida')
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'corridas',
+      filter: `motorista_id=eq.${userId}`
+    }, (payload) => {
+      console.log('📢 MOTORISTA - Corrida atualizada:', payload.new);
+      
+      if (payload.new) {
+        currentRide = payload.new;
+        
+        // Mostrar toast baseado no status
+        if (payload.new.status === 'cancelado') {
+          showToast(`❌ Corrida cancelada pelo passageiro: ${payload.new.motivo_cancelamento || 'Sem motivo'}`, 'error');
+          if (driverInterval) clearInterval(driverInterval);
+          if (routePolyline) map.removeLayer(routePolyline);
+        }
+        
+        if (payload.new.status === 'finalizado') {
+          showToast(`🏁 Corrida finalizada!`, 'success');
+          currentRide = null;
+          if (driverInterval) clearInterval(driverInterval);
+          if (routePolyline) map.removeLayer(routePolyline);
+        }
+        
+        // ATUALIZAR A TELA IMEDIATAMENTE
+        renderScreen();
+      }
+    })
+    .subscribe();
+  
+  // Listener para PASSAGEIRO: escuta mudanças na corrida dele
+  if (realtimeChannelPassageiro) {
+    realtimeChannelPassageiro.unsubscribe();
+  }
+  
+  realtimeChannelPassageiro = supabase
+    .channel('passageiro-corrida')
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'corridas',
+      filter: `passageiro_id=eq.${userId}`
+    }, async (payload) => {
+      console.log('📢 PASSAGEIRO - Corrida atualizada:', payload.new);
+      
+      if (payload.new) {
+        currentRide = payload.new;
+        
+        if (payload.new.status === 'aceito' && payload.new.motorista_id) {
+          showToast(`✅ Motorista aceitou sua corrida!`, 'success');
+          if (currentRide.origem_lat && currentRide.origem_lng) {
+            iniciarRastreamentoMotorista(payload.new.motorista_id, currentRide.origem_lat, currentRide.origem_lng);
+          }
+        }
+        
+        if (payload.new.status === 'chegando') {
+          showToast(`📍 Motorista chegou ao local!`, 'success');
+        }
+        
+        if (payload.new.status === 'emCurso') {
+          showToast(`🚗 Corrida em andamento!`, 'success');
+        }
+        
+        if (payload.new.status === 'cancelado') {
+          showToast(`❌ Corrida cancelada: ${payload.new.motivo_cancelamento || 'Sem motivo'}`, 'error');
+          if (driverInterval) clearInterval(driverInterval);
+          if (driverMarker) map.removeLayer(driverMarker);
+          if (routePolyline) map.removeLayer(routePolyline);
+        }
+        
+        if (payload.new.status === 'finalizado') {
+          showToast(`🏁 Corrida finalizada! R$ ${payload.new.preco}`, 'success');
+          currentRide = null;
+          if (driverInterval) clearInterval(driverInterval);
+          if (driverMarker) map.removeLayer(driverMarker);
+          if (routePolyline) map.removeLayer(routePolyline);
+        }
+        
+        renderScreen();
+      }
+    })
+    .subscribe();
+  
+  // Listener para novas solicitações (motorista)
   supabase
-    .channel('solicitacoes')
+    .channel('novas-solicitacoes')
     .on('postgres_changes', {
       event: 'INSERT',
       schema: 'public',
       table: 'corridas',
       filter: 'status=eq.solicitado'
     }, (payload) => {
-      console.log('📱 Nova solicitação recebida!', payload.new);
-      showToast(`📱 Nova corrida solicitada! Destino: ${payload.new.destino}`, 'success');
-      if (currentUser?.tipo === 'motorista') {
-        renderScreen();
-      }
-    })
-    .subscribe();
-  
-  // Listener para passageiro: atualizações da sua corrida
-  supabase
-    .channel('minha_corrida')
-    .on('postgres_changes', {
-      event: 'UPDATE',
-      schema: 'public',
-      table: 'corridas',
-      filter: `passageiro_id=eq.${userId}`
-    }, async (payload) => {
-      console.log('📢 Sua corrida foi atualizada!', payload.new);
-      currentRide = payload.new;
-      
-      if (payload.new.status === 'aceito' && payload.new.motorista_id) {
-        showToast(`✅ Motorista aceitou sua corrida! Ele está a caminho.`, 'success');
-        iniciarRastreamentoMotorista(payload.new.motorista_id);
-        renderScreen();
-      }
-      
-      if (payload.new.status === 'chegando') {
-        showToast(`📍 Motorista chegou ao seu local!`, 'success');
-        renderScreen();
-      }
-      
-      if (payload.new.status === 'emCurso') {
-        showToast(`🚗 Corrida em andamento!`, 'success');
-        renderScreen();
-      }
-      
-      if (payload.new.status === 'finalizado') {
-        showToast(`🏁 Corrida finalizada! R$ ${payload.new.preco}`, 'success');
-        if (driverInterval) clearInterval(driverInterval);
-        if (driverMarker) map.removeLayer(driverMarker);
-        currentRide = null;
-        renderScreen();
-      }
-      
-      if (payload.new.status === 'cancelado') {
-        showToast(`❌ Corrida cancelada`, 'error');
-        if (driverInterval) clearInterval(driverInterval);
-        if (driverMarker) map.removeLayer(driverMarker);
-        currentRide = null;
+      console.log('📱 Nova solicitação recebida!');
+      if (currentUser?.tipo === 'motorista' && (!currentRide || currentRide.status !== 'aceito')) {
+        showToast(`📱 Nova corrida solicitada!`, 'success');
         renderScreen();
       }
     })
@@ -347,7 +379,7 @@ async function solicitarCorrida(destino, tipo) {
   const { error } = await supabase.from('corridas').insert([novaCorrida]);
   
   if (error) {
-    showToast('Erro ao solicitar corrida: ' + error.message, 'error');
+    showToast('Erro ao solicitar corrida', 'error');
     return;
   }
   
@@ -376,7 +408,7 @@ async function aceitarCorrida(ride) {
     showToast('Erro ao aceitar corrida', 'error');
   } else {
     currentRide = { ...ride, status: 'aceito', motorista_id: userId };
-    showToast(`✅ Corrida aceita! Vá buscar o passageiro.`, 'success');
+    showToast(`✅ Corrida aceita!`, 'success');
     renderScreen();
   }
 }
@@ -390,6 +422,7 @@ async function recusarCorrida(ride) {
     .eq('id', ride.id);
   
   showToast(`❌ Corrida recusada`, 'info');
+  renderScreen();
 }
 
 async function cancelarCorrida(tipo) {
@@ -403,7 +436,8 @@ async function cancelarCorrida(tipo) {
     .update({
       status: 'cancelado',
       cancelado_por: tipo,
-      motivo_cancelamento: motivo
+      motivo_cancelamento: motivo,
+      cancelado_em: new Date().toISOString()
     })
     .eq('id', currentRide.id);
   
@@ -453,7 +487,8 @@ function iniciarGPS() {
         latitude,
         longitude,
         online: true,
-        carro: currentUser?.carro
+        carro: currentUser?.carro,
+        atualizado_em: new Date().toISOString()
       });
       
       if (userMarker) {
@@ -462,10 +497,9 @@ function iniciarGPS() {
         const icon = currentUser?.tipo === 'motorista' ? driverIcon : passengerIcon;
         userMarker = L.marker([latitude, longitude], { icon })
           .addTo(map)
-          .bindPopup(currentUser?.tipo === 'motorista' ? '🚗 Você (Motorista)' : '👤 Você (Passageiro)');
+          .bindPopup(currentUser?.tipo === 'motorista' ? '🚗 Você' : '👤 Você');
       }
       
-      // Se for motorista e tiver corrida aceita, atualizar rota
       if (currentUser?.tipo === 'motorista' && currentRide && currentRide.status === 'aceito' && currentRide.origem_lat) {
         await tracarRota(latitude, longitude, currentRide.origem_lat, currentRide.origem_lng);
       }
@@ -496,6 +530,7 @@ async function renderScreen() {
       currentUser = { tipo: 'motorista', id: userId, nome: nome || 'Motorista', carro: carro || 'Sedan' };
       await supabase.from('usuarios').upsert({ id: userId, tipo: 'motorista', online: true, nome: currentUser.nome, carro: currentUser.carro });
       iniciarGPS();
+      setupRealtimeListeners();
       renderScreen();
       showToast('Você está online como motorista!', 'success');
     });
@@ -505,15 +540,16 @@ async function renderScreen() {
       currentUser = { tipo: 'passageiro', id: userId, nome: nome || 'Passageiro' };
       await supabase.from('usuarios').upsert({ id: userId, tipo: 'passageiro', online: true, nome: currentUser.nome });
       iniciarGPS();
+      setupRealtimeListeners();
       renderScreen();
       showToast('Você está online como passageiro!', 'success');
     });
     return;
   }
   
-  // TELA DO MOTORISTA
+  // ========== TELA DO MOTORISTA ==========
   if (currentUser.tipo === 'motorista') {
-    // Verificar se tem corrida ativa
+    // Buscar corrida ativa do motorista
     const { data: corridaAtiva } = await supabase
       .from('corridas')
       .select('*')
@@ -525,25 +561,43 @@ async function renderScreen() {
       currentRide = corridaAtiva;
     }
     
+    // Se tem corrida ativa
     if (currentRide && ['aceito', 'chegando', 'emCurso'].includes(currentRide.status)) {
+      let statusText = '';
+      let statusClass = '';
+      let actionButton = '';
+      
+      if (currentRide.status === 'aceito') {
+        statusText = '🚗 Indo buscar passageiro';
+        statusClass = 'status-aceito';
+        actionButton = '<button class="btn-primary btn-warning" id="chegandoBtn">📍 Cheguei no local</button>';
+      } else if (currentRide.status === 'chegando') {
+        statusText = '📍 Você chegou ao local';
+        statusClass = 'status-chegando';
+        actionButton = '<button class="btn-primary" id="iniciarCorridaBtn">🚗 Iniciar Corrida</button>';
+      } else if (currentRide.status === 'emCurso') {
+        statusText = '🟢 Em corrida';
+        statusClass = 'status-emCurso';
+        actionButton = '<button class="btn-primary btn-success" id="finalizarCorridaBtn">🏁 Finalizar Corrida</button>';
+      }
+      
       content.innerHTML = `
-        <div class="header"><div class="logo">GoMove</div></div>
+        <div class="header">
+          <div class="logo">GoMove</div>
+          <div class="user-badge">${currentUser.nome}</div>
+        </div>
         <div class="card">
-          <div class="status-badge status-${currentRide.status}">
-            ${currentRide.status === 'aceito' ? '🚗 Indo buscar passageiro' : 
-              currentRide.status === 'chegando' ? '📍 Chegou ao local' : '🟢 Em corrida'}
+          <div class="status-badge ${statusClass}">${statusText}</div>
+          <div style="margin-bottom: 12px;">
+            <div><strong>Destino:</strong> ${currentRide.destino}</div>
+            <div><strong>Preço:</strong> R$ ${currentRide.preco}</div>
           </div>
-          <div><strong>Destino:</strong> ${currentRide.destino}</div>
-          <div><strong>Preço:</strong> R$ ${currentRide.preco}</div>
-          <div style="margin-top: 16px;">
-            ${currentRide.status === 'aceito' ? '<button class="btn-primary" id="chegandoBtn" style="background: #f59e0b;">📍 Cheguei no local</button>' : ''}
-            ${currentRide.status === 'chegando' ? '<button class="btn-primary" id="iniciarCorridaBtn">🚗 Iniciar Corrida</button>' : ''}
-            ${currentRide.status === 'emCurso' ? '<button class="btn-primary" id="finalizarCorridaBtn" style="background: #10b981;">🏁 Finalizar Corrida</button>' : ''}
-            <button class="btn-danger" id="cancelarBtn">❌ Cancelar Corrida</button>
-            <button class="btn-secondary" id="offlineBtn">Sair</button>
-          </div>
+          ${actionButton}
+          <button class="btn-danger" id="cancelarBtn">❌ Cancelar Corrida</button>
+          <button class="btn-secondary" id="offlineBtn">Sair</button>
         </div>
       `;
+      
       document.getElementById('chegandoBtn')?.addEventListener('click', motoristaChegou);
       document.getElementById('iniciarCorridaBtn')?.addEventListener('click', iniciarCorrida);
       document.getElementById('finalizarCorridaBtn')?.addEventListener('click', finalizarCorrida);
@@ -557,7 +611,7 @@ async function renderScreen() {
       return;
     }
     
-    // Buscar solicitações
+    // Buscar solicitações pendentes
     const { data: solicitacoes } = await supabase
       .from('corridas')
       .select('*')
@@ -572,7 +626,7 @@ async function renderScreen() {
       <div class="card">
         <div style="text-align: center; margin-bottom: 16px;">
           <i class="fas fa-car" style="font-size: 48px; color: #667eea;"></i>
-          <h3>Solicitações em Tempo Real</h3>
+          <h3>Solicitações</h3>
         </div>
         <div id="solicitacoesList"></div>
         <button class="btn-secondary" id="offlineBtn">Sair</button>
@@ -584,7 +638,7 @@ async function renderScreen() {
       listaDiv.innerHTML = solicitacoes.map(ride => `
         <div class="solicitacao-card">
           <div><strong>${ride.tipo}</strong> - R$ ${ride.preco}</div>
-          <div style="margin-top: 8px;">📍 Destino: ${ride.destino}</div>
+          <div>📍 Destino: ${ride.destino}</div>
           <div class="button-group">
             <button class="btn-accept" data-id="${ride.id}">✅ Aceitar</button>
             <button class="btn-reject" data-id="${ride.id}">❌ Recusar</button>
@@ -606,7 +660,7 @@ async function renderScreen() {
         });
       });
     } else {
-      listaDiv.innerHTML = '<div style="text-align: center; padding: 40px; color: #94a3b8;">📱 Nenhuma solicitação no momento</div>';
+      listaDiv.innerHTML = '<div style="text-align: center; padding: 40px; color: #94a3b8;">📱 Aguardando solicitações...</div>';
     }
     
     document.getElementById('offlineBtn')?.addEventListener('click', async () => {
@@ -617,7 +671,7 @@ async function renderScreen() {
     });
   }
   
-  // TELA DO PASSAGEIRO
+  // ========== TELA DO PASSAGEIRO ==========
   if (currentUser.tipo === 'passageiro') {
     // Buscar corrida ativa
     const { data: corridaAtiva } = await supabase
@@ -632,37 +686,47 @@ async function renderScreen() {
     if (corridaAtiva) {
       currentRide = corridaAtiva;
       
-      if (currentRide.status === 'aceito' && currentRide.motorista_id) {
-        iniciarRastreamentoMotorista(currentRide.motorista_id);
+      if (currentRide.status === 'aceito' && currentRide.motorista_id && currentRide.origem_lat) {
+        iniciarRastreamentoMotorista(currentRide.motorista_id, currentRide.origem_lat, currentRide.origem_lng);
       }
     }
     
     if (currentRide && ['solicitado', 'aceito', 'chegando', 'emCurso'].includes(currentRide.status)) {
+      let statusText = '';
+      let statusClass = '';
+      
+      if (currentRide.status === 'solicitado') {
+        statusText = '⏳ Procurando motorista...';
+        statusClass = 'status-solicitado';
+      } else if (currentRide.status === 'aceito') {
+        statusText = '🚗 Motorista a caminho!';
+        statusClass = 'status-aceito';
+      } else if (currentRide.status === 'chegando') {
+        statusText = '📍 Motorista chegou!';
+        statusClass = 'status-chegando';
+      } else if (currentRide.status === 'emCurso') {
+        statusText = '🟢 Em corrida';
+        statusClass = 'status-emCurso';
+      }
+      
       content.innerHTML = `
         <div class="header">
           <div class="logo">GoMove</div>
           <div class="user-badge">${currentUser.nome}</div>
         </div>
         <div class="card">
-          <div class="status-badge status-${currentRide.status}">
-            ${currentRide.status === 'solicitado' ? '⏳ Procurando motorista...' : 
-              currentRide.status === 'aceito' ? '🚗 Motorista a caminho!' : 
-              currentRide.status === 'chegando' ? '📍 Motorista chegou!' : 
-              '🟢 Em corrida'}
-          </div>
+          <div class="status-badge ${statusClass}">${statusText}</div>
           ${currentRide.motorista_nome ? `
-            <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
-              <div style="width: 50px; height: 50px; background: #667eea; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 20px;">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+              <div style="width: 50px; height: 50px; background: #667eea; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white;">
                 <i class="fas fa-user"></i>
               </div>
               <div>
                 <div style="font-weight: 600;">${currentRide.motorista_nome}</div>
-                <div style="font-size: 0.85rem; color: #64748b;">${currentRide.motorista_carro || 'Veículo'}</div>
+                <div style="font-size: 0.8rem; color: #64748b;">${currentRide.motorista_carro || 'Veículo'}</div>
               </div>
             </div>
-            <div id="distanceInfo" style="text-align: center; padding: 8px; background: #e0e7ff; border-radius: 12px; margin-bottom: 16px;">
-              🔄 Aguardando localização...
-            </div>
+            <div id="distanceInfo" class="distance-info">🔄 Calculando distância...</div>
           ` : ''}
           <div><strong>Destino:</strong> ${currentRide.destino}</div>
           <div><strong>Preço:</strong> R$ ${currentRide.preco}</div>
@@ -672,6 +736,7 @@ async function renderScreen() {
           </div>
         </div>
       `;
+      
       document.getElementById('cancelarBtn')?.addEventListener('click', () => cancelarCorrida('passageiro'));
       document.getElementById('logoutBtn')?.addEventListener('click', async () => {
         if (watchId) navigator.geolocation.clearWatch(watchId);
@@ -730,11 +795,14 @@ async function renderScreen() {
         selectedRide = this.dataset.ride;
       });
     });
-    document.querySelector('.ride-option').style.borderColor = '#667eea';
+    if (document.querySelector('.ride-option')) {
+      document.querySelector('.ride-option').style.borderColor = '#667eea';
+    }
     
     document.getElementById('solicitarBtn')?.addEventListener('click', () => {
       const destino = document.getElementById('destinoInput').value;
-      solicitarCorrida(destino, selectedRide);
+      if (destino) solicitarCorrida(destino, selectedRide);
+      else showToast('Digite um destino', 'error');
     });
     
     document.getElementById('logoutBtn')?.addEventListener('click', async () => {
@@ -750,7 +818,6 @@ async function renderScreen() {
 setupRealtimeListeners();
 renderScreen();
 
-// Controle do bottom sheet
 let isCollapsed = true;
 document.getElementById('sheetHandle')?.addEventListener('click', () => {
   isCollapsed = !isCollapsed;
