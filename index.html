@@ -3,866 +3,900 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>GoMove - App de Transporte</title>
-
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<title>GoMove - Transporte Completo</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
+:root {
+    --primary: #FFD400;
+    --primary-dark: #E6BF00;
+    --black: #111111;
+    --white: #FFFFFF;
+    --gray-100: #F7F7F7;
+    --gray-200: #EEEEEE;
+    --gray-300: #DDDDDD;
+    --gray-400: #CCCCCC;
+    --gray-500: #999999;
+    --gray-600: #666666;
+    --gray-700: #444444;
+    --gray-800: #222222;
+    --success: #10B981;
+    --danger: #EF4444;
+    --warning: #F59E0B;
+    --info: #3B82F6;
+    --shadow: 0 4px 20px rgba(0,0,0,0.1);
+    --shadow-lg: 0 8px 30px rgba(0,0,0,0.15);
+    --radius: 12px;
+    --radius-lg: 20px;
+}
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; }
-#map { height: 100%; width: 100%; z-index: 1; }
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--gray-100);
+    color: var(--gray-800);
+    height: 100vh;
+    overflow: hidden;
+}
+
+.container {
+    max-width: 480px;
+    margin: 0 auto;
+    background: var(--white);
+    min-height: 100vh;
+    position: relative;
+    box-shadow: var(--shadow);
+}
+
+.full-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1;
+}
+
+#map {
+    height: 100%;
+    width: 100%;
+}
+
+.header {
+    background: var(--white);
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--gray-200);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.logo {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--primary);
+    text-decoration: none;
+}
+
+.logo span { color: var(--black); }
+
+.card {
+    background: var(--white);
+    border-radius: var(--radius);
+    padding: 20px;
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+}
+
+.btn {
+    display: inline-block;
+    width: 100%;
+    padding: 14px 20px;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+}
+
+.btn-primary {
+    background: var(--primary);
+    color: var(--black);
+}
+.btn-primary:active { transform: scale(0.98); }
+
+.btn-secondary {
+    background: var(--gray-200);
+    color: var(--gray-700);
+}
+
+.btn-danger {
+    background: var(--danger);
+    color: white;
+}
+
+.btn-success {
+    background: var(--success);
+    color: white;
+}
+
+.btn-outline {
+    background: transparent;
+    border: 2px solid var(--primary);
+    color: var(--black);
+}
+
+.input-group {
+    margin-bottom: 16px;
+}
+
+.input-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--gray-700);
+}
+
+.input-group input,
+.input-group select {
+    width: 100%;
+    padding: 12px 16px;
+    border: 1px solid var(--gray-300);
+    border-radius: var(--radius);
+    font-size: 1rem;
+}
+
+.input-group input:focus {
+    outline: none;
+    border-color: var(--primary);
+}
 
 .bottom-sheet {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: white;
-  border-radius: 28px 28px 0 0;
-  z-index: 1000;
-  transition: transform 0.3s;
-  box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
-  max-height: 85vh;
-  overflow-y: auto;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--white);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    z-index: 100;
+    transition: transform 0.3s;
+    max-height: 85vh;
+    overflow-y: auto;
 }
-.bottom-sheet.collapsed { transform: translateY(calc(100% - 80px)); }
-.sheet-handle { width: 40px; height: 4px; background: #cbd5e1; border-radius: 2px; margin: 12px auto; cursor: pointer; }
-.sheet-content { padding: 0 20px 20px 20px; }
 
-.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9; }
-.logo { font-size: 1.5rem; font-weight: 800; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-.user-badge { background: #f1f5f9; padding: 8px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 500; }
-.card { background: #f8fafc; border-radius: 20px; padding: 16px; margin-bottom: 16px; }
-
-.btn-primary { width: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 16px; border-radius: 16px; font-size: 1rem; font-weight: 600; cursor: pointer; margin-bottom: 12px; }
-.btn-secondary { width: 100%; background: white; color: #64748b; border: 1px solid #e2e8f0; padding: 12px; border-radius: 16px; cursor: pointer; }
-.btn-danger { background: #ef4444; color: white; }
-.btn-warning { background: #f59e0b; color: white; }
-.btn-success { background: #10b981; color: white; }
-
-.status-badge { display: inline-block; padding: 8px 16px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; margin-bottom: 12px; }
-.status-solicitado { background: #fef3c7; color: #d97706; }
-.status-aceito { background: #dbeafe; color: #2563eb; }
-.status-chegando { background: #fed7aa; color: #c2410c; }
-.status-emCurso { background: #d1fae5; color: #059669; }
-
-.solicitacao-card {
-  background: white;
-  border: 2px solid #667eea;
-  border-radius: 16px;
-  padding: 16px;
-  margin-bottom: 12px;
+.bottom-sheet.collapsed {
+    transform: translateY(calc(100% - 80px));
 }
-.button-group { display: flex; gap: 10px; margin-top: 12px; }
-.button-group button { flex: 1; padding: 10px; border-radius: 12px; font-weight: 600; cursor: pointer; border: none; }
-.btn-accept { background: #10b981; color: white; }
-.btn-reject { background: #ef4444; color: white; }
+
+.sheet-handle {
+    width: 40px;
+    height: 4px;
+    background: var(--gray-300);
+    border-radius: 2px;
+    margin: 12px auto;
+    cursor: pointer;
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.status-online { background: var(--success); color: white; }
+.status-offline { background: var(--danger); color: white; }
+
+.ride-options {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    padding: 4px 0;
+}
+
+.ride-card {
+    flex: 0 0 120px;
+    background: var(--gray-100);
+    border-radius: var(--radius);
+    padding: 12px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 2px solid transparent;
+}
+
+.ride-card.selected {
+    border-color: var(--primary);
+    background: rgba(255,212,0,0.1);
+}
+
+.ride-icon { font-size: 2rem; margin-bottom: 8px; }
+.ride-name { font-weight: 600; font-size: 0.875rem; }
+.ride-price { font-size: 0.75rem; color: var(--success); font-weight: 600; }
+.ride-time { font-size: 0.7rem; color: var(--gray-500); }
+
+.driver-card {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+    background: var(--gray-100);
+    border-radius: var(--radius);
+    margin-bottom: 12px;
+}
+
+.driver-avatar {
+    width: 60px;
+    height: 60px;
+    background: var(--primary);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem;
+    color: var(--black);
+}
+
+.driver-info { flex: 1; }
+.driver-name { font-weight: 600; margin-bottom: 4px; }
+.driver-rating { color: var(--warning); font-size: 0.8rem; margin-bottom: 4px; }
+.driver-car { font-size: 0.75rem; color: var(--gray-500); }
 
 .toast {
-  position: fixed;
-  bottom: 100px;
-  left: 20px;
-  right: 20px;
-  background: #1e293b;
-  color: white;
-  padding: 14px;
-  border-radius: 16px;
-  font-size: 0.85rem;
-  text-align: center;
-  z-index: 2000;
-  animation: slideUp 0.3s ease;
-}
-@keyframes slideUp { from { transform: translateY(100px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-
-.distance-info {
-  text-align: center;
-  padding: 12px;
-  background: #e0e7ff;
-  border-radius: 12px;
-  margin: 12px 0;
-  font-weight: 600;
-  color: #4338ca;
+    position: fixed;
+    bottom: 100px;
+    left: 20px;
+    right: 20px;
+    background: var(--gray-800);
+    color: white;
+    padding: 14px;
+    border-radius: var(--radius);
+    font-size: 0.85rem;
+    text-align: center;
+    z-index: 1000;
+    animation: slideUp 0.3s ease;
 }
 
-.ride-option { flex:1; text-align:center; padding:12px; border:2px solid #e2e8f0; border-radius:16px; cursor:pointer; transition: all 0.2s; }
-.ride-option.selected { border-color: #667eea; background: #f0f0ff; }
-
-.modal-finalizacao {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0,0,0,0.8);
-  z-index: 3000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+@keyframes slideUp {
+    from { transform: translateY(100px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
 }
-.modal-finalizacao-content {
-  background: white;
-  border-radius: 32px;
-  padding: 32px;
-  text-align: center;
-  max-width: 320px;
-  width: 90%;
-}
-.modal-finalizacao-content i { font-size: 64px; color: #10b981; margin-bottom: 16px; }
-.modal-finalizacao-content h2 { font-size: 24px; margin-bottom: 8px; }
-.modal-finalizacao-content .valor { font-size: 28px; font-weight: bold; color: #10b981; margin: 16px 0; }
 
-.status-online {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: #d1fae5;
-  color: #059669;
-  padding: 4px 12px;
-  border-radius: 20px;
-  font-size: 12px;
+.loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--gray-200);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.modal-content {
+    background: white;
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    max-width: 320px;
+    width: 100%;
+    text-align: center;
+}
+
+.suggestions {
+    position: absolute;
+    top: 80px;
+    left: 20px;
+    right: 20px;
+    background: white;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    z-index: 10;
+    padding: 12px;
+}
+
+.suggestion-item {
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    border-radius: var(--radius);
+}
+.suggestion-item:hover { background: var(--gray-100); }
+
+.suggestion-icon {
+    width: 40px;
+    height: 40px;
+    background: var(--gray-100);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.search-header {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    right: 20px;
+    z-index: 10;
+    background: white;
+    border-radius: 50px;
+    padding: 8px 16px;
+    box-shadow: var(--shadow);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.search-header input {
+    flex: 1;
+    border: none;
+    padding: 12px 0;
+    font-size: 1rem;
+    outline: none;
+}
+
+.current-location {
+    background: var(--gray-100);
+    padding: 8px 12px;
+    border-radius: 30px;
+    font-size: 0.8rem;
+    cursor: pointer;
 }
 
 @media (min-width: 768px) {
-  .bottom-sheet { left: auto; right: 20px; bottom: 20px; width: 400px; border-radius: 28px; }
+    .container { max-width: 480px; margin: 0 auto; }
+    .bottom-sheet { left: auto; right: auto; width: 480px; margin: 0 auto; }
 }
+
+#app { height: 100vh; overflow-y: auto; }
+.hidden { display: none; }
 </style>
 </head>
 <body>
-
-<div id="map"></div>
-
-<div class="bottom-sheet collapsed" id="bottomSheet">
-  <div class="sheet-handle" id="sheetHandle"></div>
-  <div class="sheet-content" id="sheetContent"></div>
-</div>
+<div id="app"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script type="module">
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
-
-const supabase = createClient(
-  'https://fqbxhkcdefwsuefifygk.supabase.co',
-  'sb_publishable_jC8Ntyx8QD2FHkP8Bqa63A_sLljd1Fj'
-);
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+// ============================================
+// CONFIGURAÇÃO SUPABASE
+// ============================================
+const SUPABASE_URL = 'https://fqbxhkcdefwsuefifygk.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_jC8Ntyx8QD2FHkP8Bqa63A_sLljd1Fj';
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ============================================
-// CONFIGURAÇÕES GLOBAIS
+// ESTADO GLOBAL
 // ============================================
+let currentScreen = 'home';
 let currentUser = null;
 let currentRide = null;
 let map = null;
 let userMarker = null;
-let driverMarker = null;
-let routePolyline = null;
-let watchId = null;
-let driverInterval = null;
+let driverMarkers = {};
+let driverTrackingInterval = null;
 let pollingInterval = null;
-
-// Controle para evitar duplicação
-let ultimoStatusProcessado = null;
-let modalFinalizacaoAberto = false;
+let currentLocation = null;
+let destinoSelecionado = null;
+let selectedRideType = 'economico';
+let motoristaOnline = false;
 
 const userId = localStorage.getItem('gomove_user_id') || crypto.randomUUID();
 localStorage.setItem('gomove_user_id', userId);
 
 // ============================================
-// INICIALIZAR MAPA
+// FUNÇÕES AUXILIARES
+// ============================================
+function showToast(msg, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.innerHTML = msg;
+    toast.style.background = type === 'error' ? '#EF4444' : type === 'success' ? '#10B981' : '#1E293B';
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+
+function formatCurrency(value) {
+    return `R$ ${parseFloat(value).toFixed(2)}`;
+}
+
+function calcularDistancia(lat1, lng1, lat2, lng2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLng/2) * Math.sin(dLng/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+}
+
+function getCurrentPosition() {
+    return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) reject('Geolocalização não suportada');
+        navigator.geolocation.getCurrentPosition(
+            (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+            (err) => reject(err.message),
+            { enableHighAccuracy: true, timeout: 10000 }
+        );
+    });
+}
+
+// ============================================
+// MAPA
 // ============================================
 function initMap() {
-  map = L.map('map').setView([-23.5505, -46.6333], 13);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-    attribution: '© OpenStreetMap',
-    maxZoom: 19
-  }).addTo(map);
-}
-initMap();
-
-// Ícones
-const driverIcon = L.divIcon({
-  html: '<div style="background: #667eea; width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.2); border: 3px solid white;"><i class="fas fa-car" style="color: white; font-size: 22px;"></i></div>',
-  iconSize: [45, 45]
-});
-
-const passengerIcon = L.divIcon({
-  html: '<div style="background: #10b981; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.2); border: 3px solid white;"><i class="fas fa-user" style="color: white; font-size: 18px;"></i></div>',
-  iconSize: [40, 40]
-});
-
-function showToast(msg, type = 'info') {
-  const toast = document.createElement('div');
-  toast.className = 'toast';
-  toast.innerHTML = msg;
-  toast.style.background = type === 'error' ? '#ef4444' : type === 'success' ? '#10b981' : '#1e293b';
-  document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 3000);
+    if (map) return;
+    map = L.map('map').setView([-23.5505, -46.6333], 14);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '© OpenStreetMap',
+        maxZoom: 19
+    }).addTo(map);
 }
 
-// ============================================
-// MODAL DE FINALIZAÇÃO
-// ============================================
-function mostrarModalFinalizacao(valor, destino) {
-  if (modalFinalizacaoAberto) return;
-  modalFinalizacaoAberto = true;
-  
-  const modal = document.createElement('div');
-  modal.className = 'modal-finalizacao';
-  modal.innerHTML = `
-    <div class="modal-finalizacao-content">
-      <i class="fas fa-check-circle"></i>
-      <h2>🏁 Corrida Finalizada!</h2>
-      <p>Destino: ${destino}</p>
-      <div class="valor">R$ ${valor}</div>
-      <p>Agradecemos por usar GoMove!</p>
-      <button class="btn-primary" id="closeModalBtn" style="margin-top: 16px;">OK</button>
-    </div>
-  `;
-  document.body.appendChild(modal);
-  
-  document.getElementById('closeModalBtn')?.addEventListener('click', () => {
-    modal.remove();
-    modalFinalizacaoAberto = false;
-  });
-  
-  setTimeout(() => {
-    if (modal && modal.parentNode) {
-      modal.remove();
-      modalFinalizacaoAberto = false;
-    }
-  }, 5000);
-}
-
-// ============================================
-// FUNÇÕES DE MAPA E ROTAS
-// ============================================
-function calcularDistancia(lat1, lng1, lat2, lng2) {
-  if (!lat1 || !lng1 || !lat2 || !lng2) return '--';
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-            Math.sin(dLng/2) * Math.sin(dLng/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  const d = R * c;
-  if (d < 1) return `${Math.round(d * 1000)}m`;
-  return `${d.toFixed(1)}km`;
-}
-
-async function tracarRota(origemLat, origemLng, destinoLat, destinoLng) {
-  if (!origemLat || !origemLng || !destinoLat || !destinoLng) return;
-  const url = `https://router.project-osrm.org/route/v1/driving/${origemLng},${origemLat};${destinoLng},${destinoLat}?overview=full&geometries=geojson`;
-  try {
-    const response = await fetch(url);
-    const data = await response.json();
-    if (routePolyline) map.removeLayer(routePolyline);
-    if (data.routes && data.routes[0]) {
-      routePolyline = L.geoJSON(data.routes[0].geometry, {
-        style: { color: '#667eea', weight: 5, opacity: 0.8 }
-      }).addTo(map);
-      map.fitBounds(routePolyline.getBounds());
-    }
-  } catch (err) { console.error('Erro:', err); }
-}
-
-// ============================================
-// RASTREAMENTO DO MOTORISTA PARA O PASSAGEIRO
-// ============================================
-function iniciarRastreamentoMotorista(motoristaId, passageiroLat, passageiroLng) {
-  if (driverInterval) clearInterval(driverInterval);
-  
-  const buscarLocalizacao = async () => {
-    const { data: motorista } = await supabase
-      .from('usuarios')
-      .select('latitude, longitude, nome, carro')
-      .eq('id', motoristaId)
-      .single();
+function addUserMarker(lat, lng, tipo) {
+    const icon = tipo === 'motorista' 
+        ? L.divIcon({ html: '<div style="background: #FFD400; width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.2); border: 3px solid white;"><i class="fas fa-car" style="color: black; font-size: 22px;"></i></div>', iconSize: [45, 45] })
+        : L.divIcon({ html: '<div style="background: #10B981; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.2); border: 3px solid white;"><i class="fas fa-user" style="color: white; font-size: 18px;"></i></div>', iconSize: [40, 40] });
     
-    if (motorista?.latitude && motorista?.longitude) {
-      // Atualizar marcador do motorista
-      if (driverMarker) {
-        driverMarker.setLatLng([motorista.latitude, motorista.longitude]);
-      } else {
-        driverMarker = L.marker([motorista.latitude, motorista.longitude], { icon: driverIcon })
-          .addTo(map)
-          .bindPopup(`🚗 ${motorista.nome || 'Motorista'} - ${motorista.carro || 'Veículo'}`);
-      }
-      
-      // Traçar rota do motorista até o passageiro
-      await tracarRota(motorista.latitude, motorista.longitude, passageiroLat, passageiroLng);
-      
-      // Calcular e mostrar distância
-      const distancia = calcularDistancia(motorista.latitude, motorista.longitude, passageiroLat, passageiroLng);
-      const distanceEl = document.getElementById('distanceInfo');
-      if (distanceEl) distanceEl.innerHTML = `🚗 Motorista está a ${distancia} de você`;
-    }
-  };
-  
-  buscarLocalizacao();
-  driverInterval = setInterval(buscarLocalizacao, 3000);
+    if (userMarker) userMarker.setLatLng([lat, lng]);
+    else userMarker = L.marker([lat, lng], { icon }).addTo(map).bindPopup(tipo === 'motorista' ? '🚗 Você' : '👤 Você');
+    map.setView([lat, lng], 15);
 }
 
 // ============================================
-// POLLING - CORAÇÃO DO APP
+// TELAS
 // ============================================
-function iniciarPolling() {
-  if (pollingInterval) clearInterval(pollingInterval);
-  
-  pollingInterval = setInterval(async () => {
-    if (!currentUser) return;
-    
-    // ========== PASSAGEIRO ==========
-    if (currentUser.tipo === 'passageiro') {
-      const { data: corridas } = await supabase
-        .from('corridas')
-        .select('*')
-        .eq('passageiro_id', userId)
-        .order('criado_em', { ascending: false })
-        .limit(1);
-      
-      if (corridas && corridas.length > 0) {
-        const corrida = corridas[0];
-        const statusKey = `${corrida.id}_${corrida.status}`;
-        
-        if (ultimoStatusProcessado !== statusKey) {
-          ultimoStatusProcessado = statusKey;
-          console.log('Passageiro - Novo status:', corrida.status);
-          
-          if (corrida.status === 'finalizado') {
-            showToast(`🏁 Corrida finalizada! R$ ${corrida.preco}`, 'success');
-            mostrarModalFinalizacao(corrida.preco, corrida.destino);
-            currentRide = null;
-            if (driverInterval) clearInterval(driverInterval);
-            if (driverMarker) map.removeLayer(driverMarker);
-            if (routePolyline) map.removeLayer(routePolyline);
-            renderScreen();
-            return;
-          }
-          
-          if (corrida.status === 'aceito') {
-            showToast(`✅ Motorista aceitou sua corrida!`, 'success');
-            if (corrida.motorista_id && corrida.origem_lat) {
-              iniciarRastreamentoMotorista(corrida.motorista_id, corrida.origem_lat, corrida.origem_lng);
-            }
-          }
-          
-          if (corrida.status === 'chegando') {
-            showToast(`📍 Motorista chegou ao local!`, 'success');
-          }
-          
-          if (corrida.status === 'emCurso') {
-            showToast(`🚗 Corrida em andamento!`, 'success');
-          }
-          
-          currentRide = corrida;
-          renderScreen();
-        }
-      }
-    }
-    
-    // ========== MOTORISTA ==========
-    if (currentUser.tipo === 'motorista') {
-      // Verificar corrida ativa
-      const { data: corridaAtiva } = await supabase
-        .from('corridas')
-        .select('*')
-        .eq('motorista_id', userId)
-        .in('status', ['aceito', 'chegando', 'emCurso', 'finalizado'])
-        .maybeSingle();
-      
-      if (corridaAtiva) {
-        const statusKey = `${corridaAtiva.id}_${corridaAtiva.status}`;
-        
-        if (ultimoStatusProcessado !== statusKey) {
-          ultimoStatusProcessado = statusKey;
-          console.log('Motorista - Novo status:', corridaAtiva.status);
-          
-          if (corridaAtiva.status === 'finalizado') {
-            showToast(`🏁 Corrida finalizada! R$ ${corridaAtiva.preco}`, 'success');
-            mostrarModalFinalizacao(corridaAtiva.preco, corridaAtiva.destino);
-            currentRide = null;
-            if (routePolyline) map.removeLayer(routePolyline);
-            renderScreen();
-            return;
-          }
-          
-          currentRide = corridaAtiva;
-          renderScreen();
-        }
-      } else if (currentRide) {
-        currentRide = null;
-        renderScreen();
-      }
-      
-      // Buscar solicitações (apenas se não estiver em corrida)
-      if (!currentRide) {
-        const { data: solicitacoes } = await supabase
-          .from('corridas')
-          .select('*')
-          .eq('status', 'solicitado')
-          .order('criado_em', { ascending: false });
-        
-        const listaDiv = document.getElementById('solicitacoesList');
-        if (listaDiv) {
-          if (solicitacoes && solicitacoes.length > 0) {
-            listaDiv.innerHTML = solicitacoes.map(ride => `
-              <div class="solicitacao-card">
-                <div><strong>${ride.tipo === 'economico' ? '🚗 Econômico' : ride.tipo === 'comfort' ? '🚙 Comfort' : '🖤 Black'}</strong> - R$ ${ride.preco}</div>
-                <div>📍 Destino: ${ride.destino}</div>
-                <div class="button-group">
-                  <button class="btn-accept" data-id="${ride.id}">✅ Aceitar</button>
-                  <button class="btn-reject" data-id="${ride.id}">❌ Recusar</button>
+function renderHome() {
+    currentScreen = 'home';
+    document.getElementById('app').innerHTML = `
+        <div class="container">
+            <div style="text-align: center; padding: 40px 20px;">
+                <div style="width: 150px; margin: 0 auto 30px;">
+                    <img src="https://cdn-icons-png.flaticon.com/512/744/744465.png" width="100%">
                 </div>
-              </div>
-            `).join('');
-            
-            document.querySelectorAll('.btn-accept').forEach(btn => {
-              btn.addEventListener('click', async () => {
-                const ride = solicitacoes.find(r => r.id === btn.dataset.id);
-                if (ride) await aceitarCorrida(ride);
-              });
-            });
-            document.querySelectorAll('.btn-reject').forEach(btn => {
-              btn.addEventListener('click', async () => {
-                const ride = solicitacoes.find(r => r.id === btn.dataset.id);
-                if (ride) await recusarCorrida(ride);
-              });
-            });
-          } else {
-            listaDiv.innerHTML = '<div style="text-align: center; padding: 40px; color: #94a3b8;">📱 Nenhuma solicitação no momento</div>';
-          }
-        }
-      }
-    }
-  }, 2000);
+                <h1 class="logo" style="font-size: 2rem;">Go<span>Move</span></h1>
+                <p style="color: var(--gray-500); margin-bottom: 40px;">Seu transporte rápido e seguro</p>
+                <button class="btn btn-primary" id="loginBtn"><i class="fas fa-sign-in-alt"></i> Entrar</button>
+                <button class="btn btn-outline" id="createAccountBtn" style="margin-top: 12px;"><i class="fas fa-user-plus"></i> Criar Conta</button>
+            </div>
+            <div style="position: fixed; bottom: 20px; left: 0; right: 0; text-align: center; font-size: 0.7rem; color: var(--gray-400);">
+                <a href="#" style="color: var(--gray-500); margin: 0 10px;">Termos de uso</a>
+                <a href="#" style="color: var(--gray-500); margin: 0 10px;">Política de privacidade</a>
+            </div>
+        </div>
+    `;
+    document.getElementById('loginBtn')?.addEventListener('click', () => renderLogin());
+    document.getElementById('createAccountBtn')?.addEventListener('click', () => renderCadastroPassageiro());
 }
 
-// ============================================
-// FUNÇÕES PRINCIPAIS
-// ============================================
-async function solicitarCorrida(destino, tipo) {
-  if (!currentUser || currentUser.tipo !== 'passageiro') {
-    showToast('Você precisa estar como passageiro', 'error');
-    return;
-  }
-  if (!destino) {
-    showToast('Digite um destino', 'error');
-    return;
-  }
-  
-  let origemLat = null, origemLng = null;
-  if (userMarker) {
-    const pos = userMarker.getLatLng();
-    origemLat = pos.lat;
-    origemLng = pos.lng;
-  }
-  
-  const preco = (Math.random() * 15 + 8).toFixed(2);
-  const rideId = crypto.randomUUID();
-  
-  const novaCorrida = {
-    id: rideId,
-    passageiro_id: userId,
-    passageiro_nome: currentUser.nome,
-    origem: 'Minha localização',
-    origem_lat: origemLat,
-    origem_lng: origemLng,
-    destino: destino,
-    tipo: tipo,
-    status: 'solicitado',
-    preco: preco,
-    criado_em: new Date().toISOString()
-  };
-  
-  const { error } = await supabase.from('corridas').insert([novaCorrida]);
-  if (error) {
-    showToast('Erro ao solicitar corrida', 'error');
-    return;
-  }
-  
-  currentRide = novaCorrida;
-  showToast(`✅ Corrida solicitada! R$ ${preco}`, 'success');
-  renderScreen();
+function renderLogin() {
+    document.getElementById('app').innerHTML = `
+        <div class="container">
+            <div class="card" style="margin: 40px 20px;">
+                <div style="text-align: center; margin-bottom: 30px;">
+                    <h2 class="logo">Go<span>Move</span></h2>
+                    <p style="color: var(--gray-500);">Faça login para continuar</p>
+                </div>
+                <div class="input-group"><label>E-mail</label><input type="email" id="email" placeholder="seu@email.com"></div>
+                <div class="input-group"><label>Senha</label><input type="password" id="password" placeholder="••••••••"></div>
+                <div style="text-align: right; margin-bottom: 20px;"><a href="#" id="forgotBtn" style="color: var(--primary); font-size: 0.8rem;">Esqueceu a senha?</a></div>
+                <button class="btn btn-primary" id="loginBtn"><i class="fas fa-sign-in-alt"></i> Entrar</button>
+                <div style="text-align: center; margin: 20px 0;">ou</div>
+                <button class="btn btn-outline" id="createBtn"><i class="fas fa-user-plus"></i> Criar Conta</button>
+                <div style="text-align: center; margin-top: 20px;"><a href="#" id="backHome" style="color: var(--gray-500);">Voltar</a></div>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('loginBtn').onclick = async () => {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        if (!email || !password) { showToast('Preencha todos os campos', 'error'); return; }
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) showToast(error.message, 'error');
+        else {
+            const { data: userData } = await supabase.from('usuarios').select('tipo').eq('id', data.user.id).single();
+            if (userData?.tipo === 'motorista') renderMotoristaDashboard();
+            else renderPassageiroDashboard();
+        }
+    };
+    document.getElementById('createBtn').onclick = () => renderCadastroPassageiro();
+    document.getElementById('forgotBtn').onclick = async () => {
+        const email = prompt('Digite seu e-mail:');
+        if (email) { await supabase.auth.resetPasswordForEmail(email); showToast('Link enviado para seu e-mail!', 'success'); }
+    };
+    document.getElementById('backHome').onclick = () => renderHome();
+}
+
+function renderCadastroPassageiro() {
+    document.getElementById('app').innerHTML = `
+        <div class="container">
+            <div class="card" style="margin: 20px; max-height: calc(100vh - 40px); overflow-y: auto;">
+                <div style="text-align: center; margin-bottom: 20px;"><h2 class="logo">Go<span>Move</span></h2><p>Cadastro de Passageiro</p></div>
+                <form id="cadastroForm">
+                    <div class="input-group"><label>Nome Completo</label><input type="text" id="nome" required></div>
+                    <div class="input-group"><label>CPF</label><input type="text" id="cpf" placeholder="000.000.000-00" required></div>
+                    <div class="input-group"><label>Data de Nascimento</label><input type="date" id="dataNascimento" required></div>
+                    <div class="input-group"><label>Telefone</label><input type="tel" id="telefone" placeholder="(00) 00000-0000" required></div>
+                    <div class="input-group"><label>E-mail</label><input type="email" id="email" required></div>
+                    <div class="input-group"><label>Senha</label><input type="password" id="senha" required></div>
+                    <div class="input-group"><label>Confirmar Senha</label><input type="password" id="confirmarSenha" required></div>
+                    <button type="submit" class="btn btn-primary">Criar Conta</button>
+                </form>
+                <div style="text-align: center; margin-top: 20px;"><a href="#" id="backToLogin" style="color: var(--primary);">Já tem conta? Faça login</a></div>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('cadastroForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const senha = document.getElementById('senha').value;
+        const confirmar = document.getElementById('confirmarSenha').value;
+        if (senha !== confirmar) { showToast('Senhas não coincidem', 'error'); return; }
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+            email: document.getElementById('email').value,
+            password: senha
+        });
+        if (authError) { showToast(authError.message, 'error'); return; }
+        const { error: profileError } = await supabase.from('usuarios').insert({
+            id: authData.user.id, tipo: 'passageiro', nome: document.getElementById('nome').value,
+            cpf: document.getElementById('cpf').value, data_nascimento: document.getElementById('dataNascimento').value,
+            telefone: document.getElementById('telefone').value, email: document.getElementById('email').value,
+            status: 'ativo', criado_em: new Date().toISOString()
+        });
+        if (profileError) showToast('Erro ao criar perfil', 'error');
+        else { showToast('Conta criada com sucesso!', 'success'); setTimeout(() => renderLogin(), 2000); }
+    };
+    document.getElementById('backToLogin').onclick = () => renderLogin();
+}
+
+function renderCadastroMotorista() {
+    document.getElementById('app').innerHTML = `
+        <div class="container">
+            <div class="card" style="margin: 20px; max-height: calc(100vh - 40px); overflow-y: auto;">
+                <div style="text-align: center; margin-bottom: 20px;"><h2 class="logo">Go<span>Move</span></h2><p>Cadastro de Motorista</p></div>
+                <form id="cadastroMotoristaForm">
+                    <h3 style="margin: 16px 0 8px;">Dados pessoais</h3>
+                    <div class="input-group"><label>Nome Completo</label><input type="text" id="nome" required></div>
+                    <div class="input-group"><label>CPF</label><input type="text" id="cpf" required></div>
+                    <div class="input-group"><label>RG</label><input type="text" id="rg" required></div>
+                    <div class="input-group"><label>Telefone</label><input type="tel" id="telefone" required></div>
+                    <div class="input-group"><label>E-mail</label><input type="email" id="email" required></div>
+                    
+                    <h3 style="margin: 16px 0 8px;">Veículo</h3>
+                    <div class="input-group"><label>Marca</label><input type="text" id="marca" required></div>
+                    <div class="input-group"><label>Modelo</label><input type="text" id="modelo" required></div>
+                    <div class="input-group"><label>Cor</label><input type="text" id="cor" required></div>
+                    <div class="input-group"><label>Ano</label><input type="number" id="ano" required></div>
+                    <div class="input-group"><label>Placa</label><input type="text" id="placa" required></div>
+                    
+                    <div class="input-group"><label>Senha</label><input type="password" id="senha" required></div>
+                    <div class="input-group"><label>Confirmar Senha</label><input type="password" id="confirmarSenha" required></div>
+                    <button type="submit" class="btn btn-primary">Cadastrar como Motorista</button>
+                </form>
+                <div style="text-align: center; margin-top: 20px;"><a href="#" id="backToLogin" style="color: var(--primary);">Voltar</a></div>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('cadastroMotoristaForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const senha = document.getElementById('senha').value;
+        const confirmar = document.getElementById('confirmarSenha').value;
+        if (senha !== confirmar) { showToast('Senhas não coincidem', 'error'); return; }
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+            email: document.getElementById('email').value,
+            password: senha
+        });
+        if (authError) { showToast(authError.message, 'error'); return; }
+        const { error: profileError } = await supabase.from('usuarios').insert({
+            id: authData.user.id, tipo: 'motorista', nome: document.getElementById('nome').value,
+            cpf: document.getElementById('cpf').value, rg: document.getElementById('rg').value,
+            telefone: document.getElementById('telefone').value, email: document.getElementById('email').value,
+            marca: document.getElementById('marca').value, modelo: document.getElementById('modelo').value,
+            cor: document.getElementById('cor').value, ano: document.getElementById('ano').value,
+            placa: document.getElementById('placa').value, status: 'em_analise',
+            criado_em: new Date().toISOString()
+        });
+        if (profileError) showToast('Erro ao criar perfil', 'error');
+        else { showToast('Cadastro enviado para análise!', 'success'); setTimeout(() => renderLogin(), 2000); }
+    };
+    document.getElementById('backToLogin').onclick = () => renderLogin();
+}
+
+function renderPassageiroDashboard() {
+    currentScreen = 'passageiro';
+    initMap();
+    startGPSPassageiro();
+    startPollingPassageiro();
+    
+    document.getElementById('app').innerHTML = `
+        <div id="map" class="full-screen"></div>
+        <div class="search-header">
+            <i class="fas fa-search" style="color: var(--gray-500);"></i>
+            <input type="text" id="destinoInput" placeholder="Para onde você vai?">
+            <div class="current-location" id="currentLocationBtn"><i class="fas fa-location-dot"></i> Local</div>
+        </div>
+        <div id="suggestions" class="suggestions" style="display: none;">
+            <div class="suggestion-item" data-destino="Casa"><div class="suggestion-icon"><i class="fas fa-home"></i></div><div><strong>Casa</strong><br><small>Seu endereço residencial</small></div></div>
+            <div class="suggestion-item" data-destino="Trabalho"><div class="suggestion-icon"><i class="fas fa-briefcase"></i></div><div><strong>Trabalho</strong><br><small>Seu local de trabalho</small></div></div>
+            <div class="suggestion-item" data-destino="Shopping Center"><div class="suggestion-icon"><i class="fas fa-store"></i></div><div><strong>Shopping Center</strong><br><small>Compras e lazer</small></div></div>
+            <div class="suggestion-item" data-destino="Aeroporto"><div class="suggestion-icon"><i class="fas fa-plane"></i></div><div><strong>Aeroporto</strong><br><small>Viagens</small></div></div>
+        </div>
+        <div class="bottom-sheet collapsed" id="bottomSheet">
+            <div class="sheet-handle" id="sheetHandle"></div>
+            <div class="sheet-content" id="sheetContent"></div>
+        </div>
+    `;
+    
+    setupPassageiroListeners();
+    renderPassageiroHome();
+}
+
+function startGPSPassageiro() {
+    navigator.geolocation.watchPosition(async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        currentLocation = { lat: latitude, lng: longitude };
+        await supabase.from('usuarios').upsert({ id: userId, tipo: 'passageiro', latitude, longitude, online: true });
+        addUserMarker(latitude, longitude, 'passageiro');
+        buscarMotoristasProximos();
+    }, (err) => console.error(err), { enableHighAccuracy: true, maximumAge: 3000, timeout: 10000 });
+}
+
+async function buscarMotoristasProximos() {
+    if (!currentLocation) return;
+    const { data: drivers } = await supabase.from('usuarios').select('*').eq('tipo', 'motorista').eq('online', true);
+    const driverIcon = L.divIcon({ html: '<div style="background: #FFD400; width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.2); border: 3px solid white;"><i class="fas fa-car" style="color: black; font-size: 22px;"></i></div>', iconSize: [45, 45] });
+    for (const driver of drivers || []) {
+        if (driver.latitude && driver.longitude) {
+            if (driverMarkers[driver.id]) driverMarkers[driver.id].setLatLng([driver.latitude, driver.longitude]);
+            else driverMarkers[driver.id] = L.marker([driver.latitude, driver.longitude], { icon: driverIcon }).addTo(map).bindPopup(`🚗 ${driver.nome || 'Motorista'}`);
+        }
+    }
+}
+
+function startPollingPassageiro() {
+    if (pollingInterval) clearInterval(pollingInterval);
+    pollingInterval = setInterval(async () => {
+        buscarMotoristasProximos();
+        const { data: corrida } = await supabase.from('corridas').select('*').eq('passageiro_id', userId).in('status', ['solicitado', 'aceito', 'chegando', 'emCurso']).order('criado_em', { ascending: false }).limit(1);
+        if (corrida?.length > 0 && (!currentRide || currentRide.id !== corrida[0].id)) { currentRide = corrida[0]; atualizarTelaCorrida(); }
+    }, 3000);
+}
+
+function atualizarTelaCorrida() {
+    if (!currentRide) return;
+    if (currentRide.status === 'aceito') {
+        if (driverTrackingInterval) clearInterval(driverTrackingInterval);
+        driverTrackingInterval = setInterval(async () => {
+            const { data: driver } = await supabase.from('usuarios').select('latitude, longitude').eq('id', currentRide.motorista_id).single();
+            if (driver?.latitude && driverMarkers[currentRide.motorista_id]) driverMarkers[currentRide.motorista_id].setLatLng([driver.latitude, driver.longitude]);
+        }, 2000);
+        renderMotoristaEncontrado();
+    } else if (currentRide.status === 'chegando') renderEmCorrida();
+    else if (currentRide.status === 'emCurso') renderEmCorrida();
+}
+
+function renderPassageiroHome() {
+    const sheet = document.getElementById('sheetContent');
+    if (!sheet) return;
+    sheet.innerHTML = `
+        <div style="padding: 0 0 20px 0;">
+            <div class="ride-options" id="rideOptions">
+                <div class="ride-card ${selectedRideType === 'economico' ? 'selected' : ''}" data-tipo="economico"><div class="ride-icon">🚗</div><div class="ride-name">Econômico</div><div class="ride-price">R$ 5</div><div class="ride-time">2-4 min</div></div>
+                <div class="ride-card ${selectedRideType === 'comfort' ? 'selected' : ''}" data-tipo="comfort"><div class="ride-icon">🚙</div><div class="ride-name">Comfort</div><div class="ride-price">R$ 7.50</div><div class="ride-time">3-5 min</div></div>
+                <div class="ride-card ${selectedRideType === 'xl' ? 'selected' : ''}" data-tipo="xl"><div class="ride-icon">🚐</div><div class="ride-name">XL</div><div class="ride-price">R$ 10</div><div class="ride-time">5-7 min</div></div>
+            </div>
+            <button class="btn btn-primary" id="solicitarCorridaBtn">Solicitar Corrida</button>
+        </div>
+    `;
+    document.querySelectorAll('.ride-card').forEach(card => {
+        card.onclick = () => { document.querySelectorAll('.ride-card').forEach(c => c.classList.remove('selected')); card.classList.add('selected'); selectedRideType = card.dataset.tipo; };
+    });
+    document.getElementById('solicitarCorridaBtn').onclick = () => { if (destinoSelecionado) solicitarCorrida(); else showToast('Digite um destino', 'error'); };
+}
+
+async function solicitarCorrida() {
+    const preco = selectedRideType === 'economico' ? (Math.random() * 10 + 8).toFixed(2) : selectedRideType === 'comfort' ? (Math.random() * 15 + 12).toFixed(2) : (Math.random() * 20 + 15).toFixed(2);
+    const rideId = crypto.randomUUID();
+    const { error } = await supabase.from('corridas').insert({
+        id: rideId, passageiro_id: userId, passageiro_nome: currentUser?.nome || 'Passageiro',
+        origem: 'Minha localização', origem_lat: currentLocation?.lat, origem_lng: currentLocation?.lng,
+        destino: destinoSelecionado, tipo: selectedRideType, status: 'solicitado', preco: preco,
+        criado_em: new Date().toISOString()
+    });
+    if (error) showToast('Erro ao solicitar corrida', 'error');
+    else { currentRide = { id: rideId, status: 'solicitado', destino: destinoSelecionado, preco: preco }; renderProcurandoMotorista(); }
+}
+
+function renderProcurandoMotorista() {
+    const sheet = document.getElementById('sheetContent');
+    if (!sheet) return;
+    sheet.innerHTML = `<div class="loading"><div class="spinner"></div><h3 style="margin-top: 20px;">Procurando motorista...</h3><p style="color: var(--gray-500);">Aguarde, estamos encontrando o melhor motorista para você</p></div><button class="btn-danger" id="cancelarBuscaBtn" style="margin-top: 20px;">Cancelar</button>`;
+    document.getElementById('cancelarBuscaBtn')?.addEventListener('click', async () => { await supabase.from('corridas').update({ status: 'cancelado' }).eq('id', currentRide.id); currentRide = null; renderPassageiroHome(); });
+    const bs = document.getElementById('bottomSheet');
+    if (bs) bs.classList.remove('collapsed');
+}
+
+function renderMotoristaEncontrado() {
+    const sheet = document.getElementById('sheetContent');
+    if (!sheet) return;
+    sheet.innerHTML = `
+        <div class="driver-card"><div class="driver-avatar"><i class="fas fa-user"></i></div><div class="driver-info"><div class="driver-name">${currentRide.motorista_nome || 'Motorista'}</div><div class="driver-rating">★★★★☆ 4.8</div><div class="driver-car">${currentRide.motorista_carro || 'Sedan Preto'}</div><div class="driver-placa">ABC-1234</div></div></div>
+        <div style="margin-bottom: 16px;"><div><i class="fas fa-circle" style="color: #10B981; font-size: 12px;"></i> <strong>Origem:</strong> ${currentRide.origem}</div><div style="margin-top: 8px;"><i class="fas fa-flag-checkered" style="color: #EF4444; font-size: 12px;"></i> <strong>Destino:</strong> ${currentRide.destino}</div></div>
+        <div style="background: var(--gray-100); border-radius: 12px; padding: 12px; margin-bottom: 16px;"><div>Tempo de chegada</div><div><strong>${Math.floor(Math.random() * 10) + 3} min</strong></div></div>
+        <button class="btn-danger" id="cancelarCorridaBtn">Cancelar Corrida</button>
+    `;
+    document.getElementById('cancelarCorridaBtn')?.addEventListener('click', async () => { await supabase.from('corridas').update({ status: 'cancelado' }).eq('id', currentRide.id); currentRide = null; renderPassageiroHome(); });
+}
+
+function renderEmCorrida() {
+    const sheet = document.getElementById('sheetContent');
+    if (!sheet) return;
+    sheet.innerHTML = `<div style="text-align: center; padding: 20px;"><i class="fas fa-car" style="font-size: 48px; color: var(--primary);"></i><h3>🟢 Em corrida</h3><p>Destino: ${currentRide?.destino}</p><div style="background: var(--gray-100); border-radius: 12px; padding: 12px; margin-top: 16px;"><div>Tempo restante</div><div><strong>${Math.floor(Math.random() * 15) + 5} min</strong></div><div>Distância restante</div><div><strong>${(Math.random() * 10).toFixed(1)} km</strong></div></div></div>`;
+}
+
+function setupPassageiroListeners() {
+    const destinoInput = document.getElementById('destinoInput');
+    const suggestions = document.getElementById('suggestions');
+    if (destinoInput) {
+        destinoInput.onfocus = () => { if (suggestions) suggestions.style.display = 'block'; };
+        destinoInput.onblur = () => setTimeout(() => { if (suggestions) suggestions.style.display = 'none'; }, 200);
+        destinoInput.oninput = (e) => { destinoSelecionado = e.target.value; };
+    }
+    document.querySelectorAll('.suggestion-item')?.forEach(item => {
+        item.onclick = () => { destinoInput.value = item.dataset.destino; destinoSelecionado = item.dataset.destino; if (suggestions) suggestions.style.display = 'none'; renderPassageiroHome(); };
+    });
+    document.getElementById('currentLocationBtn')?.addEventListener('click', async () => { try { const pos = await getCurrentPosition(); if (map) map.setView([pos.lat, pos.lng], 15); showToast('Localização atualizada', 'success'); } catch(e) { showToast('Erro ao obter localização', 'error'); } });
+    
+    let isCollapsed = true;
+    const sheetHandle = document.getElementById('sheetHandle');
+    const bottomSheet = document.getElementById('bottomSheet');
+    if (sheetHandle) sheetHandle.onclick = () => { isCollapsed = !isCollapsed; bottomSheet?.classList.toggle('collapsed', isCollapsed); };
+}
+
+function renderMotoristaDashboard() {
+    currentScreen = 'motorista';
+    initMap();
+    startGPSMotorista();
+    startPollingMotorista();
+    motoristaOnline = true;
+    
+    document.getElementById('app').innerHTML = `
+        <div id="map" class="full-screen"></div>
+        <div style="position: absolute; top: 20px; right: 20px; z-index: 10; background: white; border-radius: 30px; padding: 8px 16px; box-shadow: var(--shadow); display: flex; gap: 12px;">
+            <span id="statusBadge" class="status-badge status-online"><i class="fas fa-circle"></i> ONLINE</span>
+        </div>
+        <div class="bottom-sheet collapsed" id="bottomSheet">
+            <div class="sheet-handle" id="sheetHandle"></div>
+            <div class="sheet-content" id="sheetContent"></div>
+        </div>
+    `;
+    
+    renderMotoristaHome();
+    
+    let isCollapsed = true;
+    document.getElementById('sheetHandle').onclick = () => { isCollapsed = !isCollapsed; document.getElementById('bottomSheet').classList.toggle('collapsed', isCollapsed); };
+}
+
+function startGPSMotorista() {
+    navigator.geolocation.watchPosition(async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        currentLocation = { lat: latitude, lng: longitude };
+        await supabase.from('usuarios').upsert({ id: userId, tipo: 'motorista', latitude, longitude, online: motoristaOnline });
+        addUserMarker(latitude, longitude, 'motorista');
+    }, (err) => console.error(err), { enableHighAccuracy: true, maximumAge: 3000, timeout: 10000 });
+}
+
+function startPollingMotorista() {
+    if (pollingInterval) clearInterval(pollingInterval);
+    pollingInterval = setInterval(async () => {
+        const { data: corridaAtiva } = await supabase.from('corridas').select('*').eq('motorista_id', userId).in('status', ['aceito', 'chegando', 'emCurso']).maybeSingle();
+        if (corridaAtiva && (!currentRide || currentRide.id !== corridaAtiva.id)) { currentRide = corridaAtiva; atualizarTelaMotorista(); }
+        else if (!corridaAtiva && currentRide) { currentRide = null; renderMotoristaHome(); }
+        
+        const { data: solicitacoes } = await supabase.from('corridas').select('*').eq('status', 'solicitado').order('criado_em', { ascending: false });
+        const listaDiv = document.getElementById('solicitacoesList');
+        if (listaDiv && !currentRide) {
+            if (solicitacoes?.length) listaDiv.innerHTML = solicitacoes.map(ride => `
+                <div class="card" style="margin-bottom: 12px;"><div><strong>${ride.tipo === 'economico' ? '🚗 Econômico' : ride.tipo === 'comfort' ? '🚙 Comfort' : '🚐 XL'}</strong> - ${formatCurrency(ride.preco)}</div>
+                <div>📍 Destino: ${ride.destino}</div><div class="button-group" style="display: flex; gap: 12px; margin-top: 12px;">
+                <button class="btn-accept" data-id="${ride.id}" style="background: #10B981; color: white; padding: 10px; border-radius: 12px; border: none; cursor: pointer;">✅ Aceitar</button>
+                <button class="btn-reject" data-id="${ride.id}" style="background: #EF4444; color: white; padding: 10px; border-radius: 12px; border: none; cursor: pointer;">❌ Recusar</button>
+                </div></div>
+            `).join('');
+            document.querySelectorAll('.btn-accept').forEach(btn => btn.onclick = async () => { const ride = solicitacoes.find(r => r.id === btn.dataset.id); if (ride) await aceitarCorrida(ride); });
+            document.querySelectorAll('.btn-reject').forEach(btn => btn.onclick = async () => { const ride = solicitacoes.find(r => r.id === btn.dataset.id); if (ride) await recusarCorrida(ride); });
+        }
+    }, 3000);
+}
+
+function renderMotoristaHome() {
+    const sheet = document.getElementById('sheetContent');
+    if (!sheet) return;
+    sheet.innerHTML = `
+        <div style="text-align: center; padding: 20px;"><i class="fas fa-car" style="font-size: 48px; color: var(--primary);"></i><h3>Aguardando solicitações</h3><p style="color: var(--gray-500);">As corridas aparecerão aqui</p><div id="solicitacoesList"></div></div>
+        <button class="btn-danger" id="toggleOnlineBtn" style="margin-top: 20px;">Ficar Offline</button>
+    `;
+    document.getElementById('toggleOnlineBtn').onclick = async () => {
+        motoristaOnline = !motoristaOnline;
+        await supabase.from('usuarios').update({ online: motoristaOnline }).eq('id', userId);
+        document.getElementById('toggleOnlineBtn').innerHTML = motoristaOnline ? 'Ficar Offline' : 'Ficar Online';
+        document.getElementById('statusBadge').innerHTML = motoristaOnline ? '<i class="fas fa-circle"></i> ONLINE' : '<i class="fas fa-circle"></i> OFFLINE';
+        document.getElementById('statusBadge').className = motoristaOnline ? 'status-badge status-online' : 'status-badge status-offline';
+        showToast(motoristaOnline ? 'Você está online!' : 'Você está offline!', 'success');
+    };
+}
+
+function atualizarTelaMotorista() {
+    if (!currentRide) return;
+    const sheet = document.getElementById('sheetContent');
+    if (!sheet) return;
+    let statusText = '', actionBtn = '';
+    if (currentRide.status === 'aceito') { statusText = '🚗 Indo buscar passageiro'; actionBtn = '<button class="btn-primary btn-warning" id="chegandoBtn" style="background: #F59E0B;">📍 Cheguei no local</button>'; }
+    else if (currentRide.status === 'chegando') { statusText = '📍 Você chegou ao local'; actionBtn = '<button class="btn-primary" id="iniciarCorridaBtn">🚗 Iniciar Corrida</button>'; }
+    else if (currentRide.status === 'emCurso') { statusText = '🟢 Em corrida'; actionBtn = '<button class="btn-primary btn-success" id="finalizarCorridaBtn">🏁 Finalizar Corrida</button>'; }
+    sheet.innerHTML = `<div class="card"><div class="status-badge" style="background: #DBEAFE; color: #2563EB;">${statusText}</div><div><strong>Destino:</strong> ${currentRide.destino}</div><div><strong>Preço:</strong> ${formatCurrency(currentRide.preco)}</div><div style="margin-top: 16px;">${actionBtn}<button class="btn-danger" id="cancelarBtn" style="margin-top: 12px;">❌ Cancelar Corrida</button></div></div>`;
+    document.getElementById('chegandoBtn')?.addEventListener('click', async () => { await supabase.from('corridas').update({ status: 'chegando', chegando_em: new Date().toISOString() }).eq('id', currentRide.id); showToast('✅ Você chegou ao local!', 'success'); });
+    document.getElementById('iniciarCorridaBtn')?.addEventListener('click', async () => { await supabase.from('corridas').update({ status: 'emCurso', iniciado_em: new Date().toISOString() }).eq('id', currentRide.id); showToast('🚗 Corrida iniciada!', 'success'); });
+    document.getElementById('finalizarCorridaBtn')?.addEventListener('click', async () => { await supabase.from('corridas').update({ status: 'finalizado', finalizado_em: new Date().toISOString() }).eq('id', currentRide.id); showToast(`🏁 Corrida finalizada! ${formatCurrency(currentRide.preco)}`, 'success'); currentRide = null; renderMotoristaHome(); });
+    document.getElementById('cancelarBtn')?.addEventListener('click', async () => { await supabase.from('corridas').update({ status: 'cancelado' }).eq('id', currentRide.id); currentRide = null; renderMotoristaHome(); });
 }
 
 async function aceitarCorrida(ride) {
-  if (!currentUser || currentUser.tipo !== 'motorista') return;
-  
-  const { error } = await supabase
-    .from('corridas')
-    .update({
-      status: 'aceito',
-      motorista_id: userId,
-      motorista_nome: currentUser.nome,
-      motorista_carro: currentUser.carro,
-      aceito_em: new Date().toISOString()
-    })
-    .eq('id', ride.id);
-  
-  if (error) {
-    showToast('Erro ao aceitar corrida', 'error');
-  } else {
-    showToast(`✅ Corrida aceita!`, 'success');
-    renderScreen();
-  }
+    await supabase.from('corridas').update({ status: 'aceito', motorista_id: userId, motorista_nome: currentUser?.nome || 'Motorista', aceito_em: new Date().toISOString() }).eq('id', ride.id);
+    currentRide = { ...ride, status: 'aceito', motorista_id: userId };
+    showToast('✅ Corrida aceita! Vá buscar o passageiro.', 'success');
+    atualizarTelaMotorista();
 }
 
 async function recusarCorrida(ride) {
-  if (!currentUser || currentUser.tipo !== 'motorista') return;
-  await supabase.from('corridas').update({ status: 'recusado' }).eq('id', ride.id);
-  showToast(`❌ Corrida recusada`, 'info');
-  renderScreen();
-}
-
-async function cancelarCorrida(tipo) {
-  if (!currentRide) return;
-  const motivo = prompt('Motivo do cancelamento:');
-  if (!motivo) return;
-  
-  await supabase
-    .from('corridas')
-    .update({
-      status: 'cancelado',
-      cancelado_por: tipo,
-      motivo_cancelamento: motivo,
-      cancelado_em: new Date().toISOString()
-    })
-    .eq('id', currentRide.id);
-  
-  showToast(`✅ Corrida cancelada`, 'info');
-  currentRide = null;
-  if (driverInterval) clearInterval(driverInterval);
-  if (driverMarker) map.removeLayer(driverMarker);
-  if (routePolyline) map.removeLayer(routePolyline);
-  renderScreen();
-}
-
-async function motoristaChegou() {
-  if (!currentRide) return;
-  const { error } = await supabase
-    .from('corridas')
-    .update({ status: 'chegando', chegando_em: new Date().toISOString() })
-    .eq('id', currentRide.id);
-  
-  if (error) {
-    showToast('Erro ao atualizar status', 'error');
-  } else {
-    showToast('✅ Você chegou ao local!', 'success');
-    renderScreen();
-  }
-}
-
-async function iniciarCorrida() {
-  if (!currentRide) return;
-  const { error } = await supabase
-    .from('corridas')
-    .update({ status: 'emCurso', iniciado_em: new Date().toISOString() })
-    .eq('id', currentRide.id);
-  
-  if (error) {
-    showToast('Erro ao iniciar corrida', 'error');
-  } else {
-    showToast('🚗 Corrida iniciada!', 'success');
-    renderScreen();
-  }
-}
-
-async function finalizarCorrida() {
-  if (!currentRide) return;
-  const preco = currentRide.preco;
-  const destino = currentRide.destino;
-  
-  const { error } = await supabase
-    .from('corridas')
-    .update({
-      status: 'finalizado',
-      finalizado_em: new Date().toISOString()
-    })
-    .eq('id', currentRide.id);
-  
-  if (error) {
-    showToast('Erro ao finalizar corrida', 'error');
-  } else {
-    showToast(`🏁 Corrida finalizada! R$ ${preco}`, 'success');
-    mostrarModalFinalizacao(preco, destino);
-    currentRide = null;
-    if (driverInterval) clearInterval(driverInterval);
-    if (driverMarker) map.removeLayer(driverMarker);
-    if (routePolyline) map.removeLayer(routePolyline);
-    renderScreen();
-  }
-}
-
-// ============================================
-// GPS - CENTRALIZA O MAPA NO USUÁRIO
-// ============================================
-function iniciarGPS() {
-  if (watchId) navigator.geolocation.clearWatch(watchId);
-  
-  watchId = navigator.geolocation.watchPosition(
-    async (pos) => {
-      const { latitude, longitude } = pos.coords;
-      
-      // Atualizar localização no Supabase
-      await supabase.from('usuarios').upsert({
-        id: userId,
-        tipo: currentUser?.tipo,
-        nome: currentUser?.nome,
-        latitude,
-        longitude,
-        online: true,
-        carro: currentUser?.carro
-      });
-      
-      // Atualizar ou criar marcador do usuário
-      if (userMarker) {
-        userMarker.setLatLng([latitude, longitude]);
-      } else {
-        const icon = currentUser?.tipo === 'motorista' ? driverIcon : passengerIcon;
-        userMarker = L.marker([latitude, longitude], { icon })
-          .addTo(map)
-          .bindPopup(currentUser?.tipo === 'motorista' ? '🚗 Você (Motorista)' : '👤 Você (Passageiro)');
-      }
-      
-      // CENTRALIZAR O MAPA NA POSIÇÃO DO USUÁRIO
-      map.setView([latitude, longitude], 15);
-      
-      // Se for motorista e estiver em uma corrida aceita, traçar rota até o passageiro
-      if (currentUser?.tipo === 'motorista' && currentRide && currentRide.status === 'aceito' && currentRide.origem_lat) {
-        await tracarRota(latitude, longitude, currentRide.origem_lat, currentRide.origem_lng);
-      }
-    },
-    (err) => console.error('Erro GPS:', err),
-    { enableHighAccuracy: true, maximumAge: 3000, timeout: 10000 }
-  );
-}
-
-// ============================================
-// RENDERIZAÇÃO DA INTERFACE
-// ============================================
-async function renderScreen() {
-  const content = document.getElementById('sheetContent');
-  
-  if (!currentUser) {
-    content.innerHTML = `
-      <div class="header"><div class="logo">GoMove</div></div>
-      <div class="card">
-        <button class="btn-primary" id="becomeDriverBtn"><i class="fas fa-car"></i> Sou Motorista</button>
-        <button class="btn-secondary" id="becomePassengerBtn"><i class="fas fa-walking"></i> Sou Passageiro</button>
-      </div>
-    `;
-    
-    document.getElementById('becomeDriverBtn')?.addEventListener('click', async () => {
-      const nome = prompt('Seu nome:', 'Motorista');
-      const carro = prompt('Seu carro:', 'Sedan Preto');
-      currentUser = { tipo: 'motorista', id: userId, nome: nome || 'Motorista', carro: carro || 'Sedan' };
-      await supabase.from('usuarios').upsert({ id: userId, tipo: 'motorista', online: true, nome: currentUser.nome, carro: currentUser.carro });
-      iniciarGPS();
-      iniciarPolling();
-      renderScreen();
-      showToast('Você está online como motorista!', 'success');
-    });
-    
-    document.getElementById('becomePassengerBtn')?.addEventListener('click', async () => {
-      const nome = prompt('Seu nome:', 'Passageiro');
-      currentUser = { tipo: 'passageiro', id: userId, nome: nome || 'Passageiro' };
-      await supabase.from('usuarios').upsert({ id: userId, tipo: 'passageiro', online: true, nome: currentUser.nome });
-      iniciarGPS();
-      iniciarPolling();
-      renderScreen();
-      showToast('Você está online como passageiro!', 'success');
-    });
-    return;
-  }
-  
-  // TELA DO MOTORISTA
-  if (currentUser.tipo === 'motorista') {
-    if (currentRide && ['aceito', 'chegando', 'emCurso'].includes(currentRide.status)) {
-      let statusText = '', statusClass = '', actionButton = '';
-      
-      if (currentRide.status === 'aceito') {
-        statusText = '🚗 Indo buscar passageiro';
-        statusClass = 'status-aceito';
-        actionButton = '<button class="btn-primary btn-warning" id="chegandoBtn">📍 Cheguei no local</button>';
-      } else if (currentRide.status === 'chegando') {
-        statusText = '📍 Você chegou ao local';
-        statusClass = 'status-chegando';
-        actionButton = '<button class="btn-primary" id="iniciarCorridaBtn">🚗 Iniciar Corrida</button>';
-      } else if (currentRide.status === 'emCurso') {
-        statusText = '🟢 Em corrida';
-        statusClass = 'status-emCurso';
-        actionButton = '<button class="btn-primary btn-success" id="finalizarCorridaBtn">🏁 Finalizar Corrida</button>';
-      }
-      
-      content.innerHTML = `
-        <div class="header">
-          <div class="logo">GoMove</div>
-          <div class="user-badge">${currentUser.nome}</div>
-        </div>
-        <div class="card">
-          <div class="status-badge ${statusClass}">${statusText}</div>
-          <div><strong>Destino:</strong> ${currentRide.destino}</div>
-          <div><strong>Preço:</strong> R$ ${currentRide.preco}</div>
-          <div style="margin-top: 16px;">
-            ${actionButton}
-            <button class="btn-danger" id="cancelarBtn">❌ Cancelar Corrida</button>
-            <button class="btn-secondary" id="offlineBtn">Sair</button>
-          </div>
-        </div>
-      `;
-      
-      document.getElementById('chegandoBtn')?.addEventListener('click', motoristaChegou);
-      document.getElementById('iniciarCorridaBtn')?.addEventListener('click', iniciarCorrida);
-      document.getElementById('finalizarCorridaBtn')?.addEventListener('click', finalizarCorrida);
-      document.getElementById('cancelarBtn')?.addEventListener('click', () => cancelarCorrida('motorista'));
-      document.getElementById('offlineBtn')?.addEventListener('click', async () => {
-        if (watchId) navigator.geolocation.clearWatch(watchId);
-        if (pollingInterval) clearInterval(pollingInterval);
-        await supabase.from('usuarios').update({ online: false }).eq('id', userId);
-        currentUser = null;
-        renderScreen();
-      });
-      return;
-    }
-    
-    content.innerHTML = `
-      <div class="header">
-        <div class="logo">GoMove</div>
-        <div class="status-online"><i class="fas fa-circle"></i> Online</div>
-      </div>
-      <div class="card">
-        <div style="text-align: center; margin-bottom: 16px;">
-          <i class="fas fa-car" style="font-size: 48px; color: #667eea;"></i>
-          <h3>Solicitações</h3>
-        </div>
-        <div id="solicitacoesList"><div style="text-align: center; padding: 20px;">Carregando...</div></div>
-        <button class="btn-secondary" id="offlineBtn">Sair</button>
-      </div>
-    `;
-    
-    document.getElementById('offlineBtn')?.addEventListener('click', async () => {
-      if (watchId) navigator.geolocation.clearWatch(watchId);
-      if (pollingInterval) clearInterval(pollingInterval);
-      await supabase.from('usuarios').update({ online: false }).eq('id', userId);
-      currentUser = null;
-      renderScreen();
-    });
-  }
-  
-  // TELA DO PASSAGEIRO
-  if (currentUser.tipo === 'passageiro') {
-    if (currentRide && ['solicitado', 'aceito', 'chegando', 'emCurso'].includes(currentRide.status)) {
-      let statusText = '', statusClass = '';
-      
-      if (currentRide.status === 'solicitado') {
-        statusText = '⏳ Procurando motorista...';
-        statusClass = 'status-solicitado';
-      } else if (currentRide.status === 'aceito') {
-        statusText = '🚗 Motorista a caminho!';
-        statusClass = 'status-aceito';
-      } else if (currentRide.status === 'chegando') {
-        statusText = '📍 Motorista chegou!';
-        statusClass = 'status-chegando';
-      } else if (currentRide.status === 'emCurso') {
-        statusText = '🟢 Em corrida';
-        statusClass = 'status-emCurso';
-      }
-      
-      content.innerHTML = `
-        <div class="header">
-          <div class="logo">GoMove</div>
-          <div class="user-badge">${currentUser.nome}</div>
-        </div>
-        <div class="card">
-          <div class="status-badge ${statusClass}">${statusText}</div>
-          ${currentRide.motorista_nome ? `
-            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
-              <div style="width: 50px; height: 50px; background: #667eea; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white;"><i class="fas fa-user"></i></div>
-              <div>
-                <div style="font-weight: 600;">${currentRide.motorista_nome}</div>
-                <div style="font-size: 0.8rem; color: #64748b;">${currentRide.motorista_carro || 'Veículo'}</div>
-              </div>
-            </div>
-            <div id="distanceInfo" class="distance-info">🔄 Calculando distância...</div>
-          ` : ''}
-          <div><strong>Destino:</strong> ${currentRide.destino}</div>
-          <div><strong>Preço:</strong> R$ ${currentRide.preco}</div>
-          <div style="margin-top: 16px;">
-            <button class="btn-danger" id="cancelarBtn">❌ Cancelar Corrida</button>
-            <button class="btn-secondary" id="logoutBtn">Sair</button>
-          </div>
-        </div>
-      `;
-      
-      document.getElementById('cancelarBtn')?.addEventListener('click', () => cancelarCorrida('passageiro'));
-      document.getElementById('logoutBtn')?.addEventListener('click', async () => {
-        if (watchId) navigator.geolocation.clearWatch(watchId);
-        if (pollingInterval) clearInterval(pollingInterval);
-        if (driverInterval) clearInterval(driverInterval);
-        await supabase.from('usuarios').update({ online: false }).eq('id', userId);
-        currentUser = null;
-        renderScreen();
-      });
-      return;
-    }
-    
-    content.innerHTML = `
-      <div class="header">
-        <div class="logo">GoMove</div>
-        <div class="user-badge">${currentUser.nome}</div>
-      </div>
-      <div class="card">
-        <div style="margin-bottom: 16px;">
-          <label style="font-size: 0.75rem; color: #94a3b8;">DESTINO</label>
-          <input type="text" id="destinoInput" placeholder="Para onde você vai?" style="width:100%; padding:14px; border:1px solid #e2e8f0; border-radius:12px; font-size:1rem; margin-top: 4px;">
-        </div>
-        <div class="ride-options" style="display: flex; gap: 10px; margin-bottom: 16px;">
-          <div class="ride-option" data-ride="economico">🚗<br><strong>Econômico</strong><br>R$5</div>
-          <div class="ride-option" data-ride="comfort">🚙<br><strong>Comfort</strong><br>R$7</div>
-          <div class="ride-option" data-ride="black">🖤<br><strong>Black</strong><br>R$10</div>
-        </div>
-        <button class="btn-primary" id="solicitarBtn">Solicitar Corrida</button>
-        <button class="btn-secondary" id="logoutBtn">Sair</button>
-      </div>
-    `;
-    
-    let selectedRide = 'economico';
-    document.querySelectorAll('.ride-option').forEach(opt => {
-      opt.addEventListener('click', function() {
-        document.querySelectorAll('.ride-option').forEach(o => o.classList.remove('selected'));
-        this.classList.add('selected');
-        selectedRide = this.dataset.ride;
-      });
-    });
-    document.querySelector('.ride-option')?.classList.add('selected');
-    
-    document.getElementById('solicitarBtn')?.addEventListener('click', () => {
-      const destino = document.getElementById('destinoInput').value;
-      if (destino) solicitarCorrida(destino, selectedRide);
-      else showToast('Digite um destino', 'error');
-    });
-    
-    document.getElementById('logoutBtn')?.addEventListener('click', async () => {
-      if (watchId) navigator.geolocation.clearWatch(watchId);
-      if (pollingInterval) clearInterval(pollingInterval);
-      await supabase.from('usuarios').update({ online: false }).eq('id', userId);
-      currentUser = null;
-      renderScreen();
-    });
-  }
+    await supabase.from('corridas').update({ status: 'recusado' }).eq('id', ride.id);
+    showToast('❌ Corrida recusada', 'info');
 }
 
 // ============================================
 // INICIALIZAR
 // ============================================
-renderScreen();
-
-let isCollapsed = true;
-document.getElementById('sheetHandle')?.addEventListener('click', () => {
-  isCollapsed = !isCollapsed;
-  document.getElementById('bottomSheet').classList.toggle('collapsed', isCollapsed);
-});
+renderHome();
 </script>
 </body>
 </html>
